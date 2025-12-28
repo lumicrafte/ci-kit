@@ -38,7 +38,7 @@ After installation, configure these variables in your GitHub repository or organ
 
 Go to **Settings → Secrets and variables → Actions → Variables** and add:
 
-> **Note:** Variables are set at the organization level and inherited by all repositories. Individual repositories can override organization-level variables by setting their own values.
+> **Note:** Variables can be set at the organization level and inherited by all repositories. Individual repositories can override organization-level variables by setting their own values.
 
 ### Required Variables (for release builds)
 

@@ -21,16 +21,7 @@ if [ ! -d ".git" ]; then
     exit 1
 fi
 
-# Check if .github directory exists
-if [ ! -d ".github" ]; then
-    echo -e "${YELLOW}Creating .github directory...${NC}"
-    mkdir -p .github
-fi
-
-echo -e "${GREEN}Installing GitHub workflows and actions...${NC}"
-echo ""
-
-# Create directories
+# Create .github directory structure
 mkdir -p .github/workflows
 mkdir -p .github/actions/setup-android-signing
 mkdir -p .github/actions/setup-flutter
