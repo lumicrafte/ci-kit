@@ -56,23 +56,66 @@ echo "  ✓ build-android"
 echo ""
 echo -e "${GREEN}✅ Installation complete!${NC}"
 echo ""
+
+# Try to detect GitHub repository URL
+GITHUB_REPO_URL=""
+if command -v git &> /dev/null; then
+    # Get remote URL and convert to GitHub web URL
+    REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
+    if [[ "$REMOTE_URL" =~ github\.com ]]; then
+        # Convert SSH URL to HTTPS if needed
+        if [[ "$REMOTE_URL" =~ ^git@ ]]; then
+            GITHUB_REPO_URL=$(echo "$REMOTE_URL" | sed 's/^git@github\.com:/https:\/\/github.com\//' | sed 's/\.git$//')
+        else
+            GITHUB_REPO_URL=$(echo "$REMOTE_URL" | sed 's/\.git$//')
+        fi
+    fi
+fi
+
+# Try to find keystore file
+KEYSTORE_PATH="android/app/upload-keystore.jks"
+if [ -d "android" ]; then
+    # Search for common keystore file patterns
+    FOUND_KEYSTORE=$(find android -name "*.jks" -o -name "*.keystore" 2>/dev/null | head -n 1)
+    if [ -n "$FOUND_KEYSTORE" ]; then
+        KEYSTORE_PATH="$FOUND_KEYSTORE"
+    fi
+fi
+
 echo "Next steps:"
 echo "1. Review the workflows in .github/workflows/"
-echo "2. Configure required variables in your GitHub repository:"
-echo "   Go to: Settings → Secrets and variables → Actions → Variables"
+echo ""
+echo "2. Commit and push the changes:"
+echo "   git add .github/"
+echo "   git commit -m 'Add GitHub workflows for Flutter CI/CD'"
+echo "   git push"
+echo ""
+echo "3. Encode your keystore (for release builds):"
+echo ""
+echo -e "   ${YELLOW}Run this command:${NC}"
+echo -e "   ${GREEN}base64 -w 0 ${KEYSTORE_PATH}${NC}"
+echo ""
+echo "   Copy the output for the next step."
+echo ""
+echo "4. Open your repository settings:"
+echo ""
+
+if [ -n "$GITHUB_REPO_URL" ]; then
+    echo -e "   ${YELLOW}${GITHUB_REPO_URL}/settings/variables/actions${NC}"
+else
+    echo "   Go to: Settings → Secrets and variables → Actions → Variables"
+fi
+
+echo ""
+echo "5. Set the following variables:"
 echo ""
 echo "   Required variables (for release builds):"
-echo "   - ANDROID_KEYSTORE_BASE64 (base64 encoded keystore file)"
+echo "   - ANDROID_KEYSTORE_BASE64 (paste the base64 output from step 3)"
 echo "   - ANDROID_KEY_PROPERTIES (key properties file content)"
 echo ""
 echo "   Optional variables:"
 echo "   - FLUTTER_VERSION (default: 3.35.x)"
 echo "   - JAVA_VERSION (default: 17)"
-echo ""
-echo "3. Commit and push the changes:"
-echo "   git add .github/"
-echo "   git commit -m 'Add GitHub workflows for Flutter CI/CD'"
-echo "   git push"
 echo ""
 echo "For detailed configuration instructions, see:"
 echo "https://github.com/lumicrafte/ci-kit#configuration"
