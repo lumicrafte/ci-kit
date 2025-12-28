@@ -1,0 +1,273 @@
+name: Tag Validation
+
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  validate-tag:
+    name: Validate Tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # Required to delete tags
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for all tags
+
+      - name: Get tag name
+        id: tag
+        run: echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Validate tag format
+        id: validate_format
+        run: |
+          TAG_NAME="${{ steps.tag.outputs.name }}"
+          echo "Validating tag format: $TAG_NAME"
+
+          # Validate tag format (should be X.Y.Z+B where X,Y,Z,B are numbers)
+          if ! echo "$TAG_NAME" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$'; then
+            echo "::error::Tag format is invalid. Expected format: X.Y.Z+B (e.g., 1.0.0+1)"
+            echo "error_message=Tag format is invalid. Expected format: X.Y.Z+B (e.g., 1.0.0+1)" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "✅ Tag format is valid"
+
+      - name: Validate tag matches pubspec.yaml
+        id: validate_pubspec
+        run: |
+          TAG_NAME="${{ steps.tag.outputs.name }}"
+          echo "Validating tag matches pubspec.yaml: $TAG_NAME"
+
+          # Extract version from pubspec.yaml
+          PUBSPEC_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: *//')
+          echo "Version in pubspec.yaml: $PUBSPEC_VERSION"
+
+          # Check if tag matches pubspec version
+          if [ "$TAG_NAME" != "$PUBSPEC_VERSION" ]; then
+            echo "::error::Tag name '$TAG_NAME' does not match version in pubspec.yaml '$PUBSPEC_VERSION'"
+            echo "error_message=Tag name '$TAG_NAME' does not match version in pubspec.yaml '$PUBSPEC_VERSION'" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "✅ Tag matches pubspec.yaml"
+
+      - name: Validate no duplicate tag
+        id: validate_duplicate
+        run: |
+          TAG_NAME="${{ steps.tag.outputs.name }}"
+          echo "Checking for duplicate tag: $TAG_NAME"
+
+          # Get all tags except the current one
+          git fetch --tags
+          EXISTING_TAGS=$(git tag -l | grep -v "^$TAG_NAME$")
+
+          if echo "$EXISTING_TAGS" | grep -qx "$TAG_NAME"; then
+            echo "::error::Tag '$TAG_NAME' already exists in the repository"
+            echo "error_message=Tag '$TAG_NAME' already exists in the repository" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "✅ No duplicate tag found"
+
+      - name: Validate build number increment
+        id: validate_build
+        run: |
+          TAG_NAME="${{ steps.tag.outputs.name }}"
+          echo "Validating build number increment: $TAG_NAME"
+
+          # Extract build number from current tag
+          CURRENT_BUILD=$(echo "$TAG_NAME" | sed 's/.*+//')
+          echo "Current build number: $CURRENT_BUILD"
+
+          # Get previous tag
+          git fetch --tags
+          PREVIOUS_TAG=$(git tag -l --sort=-version:refname | grep -v "^$TAG_NAME$" | head -n 1)
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            # This is the first tag
+            if [ "$CURRENT_BUILD" != "1" ]; then
+              echo "::error::This is the first tag, build number must be 1, but got $CURRENT_BUILD"
+              echo "error_message=This is the first tag, build number must be 1, but got $CURRENT_BUILD" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+            echo "✅ First tag with build number 1"
+          else
+            echo "Previous tag: $PREVIOUS_TAG"
+
+            # Extract build number from previous tag
+            if echo "$PREVIOUS_TAG" | grep -qE '\+[0-9]+$'; then
+              PREVIOUS_BUILD=$(echo "$PREVIOUS_TAG" | sed 's/.*+//')
+              echo "Previous build number: $PREVIOUS_BUILD"
+
+              # Check if current build is exactly previous + 1
+              EXPECTED_BUILD=$((PREVIOUS_BUILD + 1))
+              if [ "$CURRENT_BUILD" != "$EXPECTED_BUILD" ]; then
+                echo "::error::Build number must be exactly +1 from the last tag. Expected: $EXPECTED_BUILD, Got: $CURRENT_BUILD (Previous: $PREVIOUS_TAG)"
+                echo "error_message=Build number must be exactly +1 from the last tag. Expected: $EXPECTED_BUILD, Got: $CURRENT_BUILD (Previous tag: $PREVIOUS_TAG with build $PREVIOUS_BUILD)" >> $GITHUB_OUTPUT
+                exit 1
+              fi
+            else
+              echo "::warning::Previous tag '$PREVIOUS_TAG' doesn't have a build number in the expected format"
+              # Still allow if current build is 1 or greater
+              if [ "$CURRENT_BUILD" -lt "1" ]; then
+                echo "::error::Build number must be at least 1"
+                echo "error_message=Build number must be at least 1, got $CURRENT_BUILD" >> $GITHUB_OUTPUT
+                exit 1
+              fi
+            fi
+
+            echo "✅ Build number increment is valid"
+          fi
+
+      - name: Validate semantic versioning
+        id: semver
+        run: |
+          TAG_NAME="${{ steps.tag.outputs.name }}"
+          echo "Validating semantic versioning for tag: $TAG_NAME"
+
+          # Extract version components from current tag
+          CURRENT_VERSION=$(echo "$TAG_NAME" | sed 's/+.*//')
+          CURRENT_MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+          CURRENT_MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+          CURRENT_PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+
+          echo "Current version: $CURRENT_VERSION (Major: $CURRENT_MAJOR, Minor: $CURRENT_MINOR, Patch: $CURRENT_PATCH)"
+
+          # Get previous tag
+          PREVIOUS_TAG=$(git tag -l --sort=-version:refname | grep -v "^$TAG_NAME$" | head -n 1)
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "This is the first tag. Skipping semantic versioning validation."
+            exit 0
+          fi
+
+          echo "Previous tag: $PREVIOUS_TAG"
+
+          # Extract version components from previous tag
+          PREVIOUS_VERSION=$(echo "$PREVIOUS_TAG" | sed 's/+.*//')
+          PREVIOUS_MAJOR=$(echo "$PREVIOUS_VERSION" | cut -d. -f1)
+          PREVIOUS_MINOR=$(echo "$PREVIOUS_VERSION" | cut -d. -f2)
+          PREVIOUS_PATCH=$(echo "$PREVIOUS_VERSION" | cut -d. -f3)
+
+          echo "Previous version: $PREVIOUS_VERSION (Major: $PREVIOUS_MAJOR, Minor: $PREVIOUS_MINOR, Patch: $PREVIOUS_PATCH)"
+
+          # Semantic versioning validation
+          SEMVER_VALID=false
+          SEMVER_TYPE=""
+
+          if [ "$CURRENT_MAJOR" -gt "$PREVIOUS_MAJOR" ]; then
+            # Major version bump - minor and patch should reset to 0
+            if [ "$CURRENT_MINOR" -eq "0" ] && [ "$CURRENT_PATCH" -eq "0" ]; then
+              SEMVER_VALID=true
+              SEMVER_TYPE="MAJOR"
+            else
+              echo "::error::Major version bump detected ($PREVIOUS_MAJOR -> $CURRENT_MAJOR), but minor and patch must be reset to 0. Got: $CURRENT_VERSION"
+              echo "semver_failed=major_reset" >> $GITHUB_OUTPUT
+              echo "semver_error=Major version bump requires minor and patch to be 0. Expected: $CURRENT_MAJOR.0.0+*, Got: $CURRENT_VERSION" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          elif [ "$CURRENT_MAJOR" -eq "$PREVIOUS_MAJOR" ]; then
+            if [ "$CURRENT_MINOR" -gt "$PREVIOUS_MINOR" ]; then
+              # Minor version bump - patch should reset to 0
+              if [ "$CURRENT_PATCH" -eq "0" ]; then
+                SEMVER_VALID=true
+                SEMVER_TYPE="MINOR"
+              else
+                echo "::error::Minor version bump detected ($PREVIOUS_MINOR -> $CURRENT_MINOR), but patch must be reset to 0. Got: $CURRENT_VERSION"
+                echo "semver_failed=minor_reset" >> $GITHUB_OUTPUT
+                echo "semver_error=Minor version bump requires patch to be 0. Expected: $CURRENT_MAJOR.$CURRENT_MINOR.0+*, Got: $CURRENT_VERSION" >> $GITHUB_OUTPUT
+                exit 1
+              fi
+            elif [ "$CURRENT_MINOR" -eq "$PREVIOUS_MINOR" ]; then
+              if [ "$CURRENT_PATCH" -gt "$PREVIOUS_PATCH" ]; then
+                # Patch version bump
+                SEMVER_VALID=true
+                SEMVER_TYPE="PATCH"
+              elif [ "$CURRENT_PATCH" -eq "$PREVIOUS_PATCH" ]; then
+                echo "::error::Version numbers are identical ($CURRENT_VERSION). You must increment at least one version component."
+                echo "semver_failed=no_change" >> $GITHUB_OUTPUT
+                echo "semver_error=Version $CURRENT_VERSION is the same as previous tag. You must increment major, minor, or patch." >> $GITHUB_OUTPUT
+                exit 1
+              else
+                echo "::error::Patch version cannot decrease ($PREVIOUS_PATCH -> $CURRENT_PATCH)"
+                echo "semver_failed=patch_decrease" >> $GITHUB_OUTPUT
+                echo "semver_error=Patch version decreased from $PREVIOUS_VERSION to $CURRENT_VERSION. Versions cannot go backwards." >> $GITHUB_OUTPUT
+                exit 1
+              fi
+            else
+              echo "::error::Minor version cannot decrease ($PREVIOUS_MINOR -> $CURRENT_MINOR)"
+              echo "semver_failed=minor_decrease" >> $GITHUB_OUTPUT
+              echo "semver_error=Minor version decreased from $PREVIOUS_VERSION to $CURRENT_VERSION. Versions cannot go backwards." >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          else
+            echo "::error::Major version cannot decrease ($PREVIOUS_MAJOR -> $CURRENT_MAJOR)"
+            echo "semver_failed=major_decrease" >> $GITHUB_OUTPUT
+            echo "semver_error=Major version decreased from $PREVIOUS_VERSION to $CURRENT_VERSION. Versions cannot go backwards." >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "✅ Semantic versioning valid: $SEMVER_TYPE version bump ($PREVIOUS_VERSION -> $CURRENT_VERSION)"
+          echo "semver_type=$SEMVER_TYPE" >> $GITHUB_OUTPUT
+
+      - name: Delete invalid tag
+        if: failure()
+        run: |
+          TAG_NAME="${{ steps.tag.outputs.name }}"
+
+          # Collect error messages from all validation steps
+          FORMAT_ERROR="${{ steps.validate_format.outputs.error_message }}"
+          PUBSPEC_ERROR="${{ steps.validate_pubspec.outputs.error_message }}"
+          DUPLICATE_ERROR="${{ steps.validate_duplicate.outputs.error_message }}"
+          BUILD_ERROR="${{ steps.validate_build.outputs.error_message }}"
+          SEMVER_ERROR="${{ steps.semver.outputs.semver_error }}"
+
+          # Determine which error message to display
+          if [ -n "$FORMAT_ERROR" ]; then
+            FINAL_ERROR="$FORMAT_ERROR"
+          elif [ -n "$PUBSPEC_ERROR" ]; then
+            FINAL_ERROR="$PUBSPEC_ERROR"
+          elif [ -n "$DUPLICATE_ERROR" ]; then
+            FINAL_ERROR="$DUPLICATE_ERROR"
+          elif [ -n "$BUILD_ERROR" ]; then
+            FINAL_ERROR="$BUILD_ERROR"
+          elif [ -n "$SEMVER_ERROR" ]; then
+            FINAL_ERROR="$SEMVER_ERROR"
+          else
+            FINAL_ERROR="Unknown validation error"
+          fi
+
+          echo "::error::Validation failed: $FINAL_ERROR"
+          echo "Deleting invalid tag: $TAG_NAME"
+
+          # Delete the tag from remote
+          git push origin --delete "$TAG_NAME" || echo "::warning::Failed to delete tag from remote (it may have already been deleted)"
+
+          echo "::error::================================================"
+          echo "::error::TAG VALIDATION FAILED AND TAG WAS DELETED"
+          echo "::error::================================================"
+          echo "::error::Tag: $TAG_NAME"
+          echo "::error::Reason: $FINAL_ERROR"
+          echo "::error::================================================"
+          echo "::error::Please fix the issue and create a new tag."
+
+          exit 1
+
+      - name: Validation success
+        if: success()
+        run: |
+          TAG_NAME="${{ steps.tag.outputs.name }}"
+          SEMVER_TYPE="${{ steps.semver.outputs.semver_type }}"
+
+          echo "::notice::✅ Tag validation successful for $TAG_NAME"
+          echo "::notice::Tag matches pubspec.yaml and follows versioning rules"
+
+          if [ -n "$SEMVER_TYPE" ]; then
+            echo "::notice::Semantic version bump type: $SEMVER_TYPE"
+          fi

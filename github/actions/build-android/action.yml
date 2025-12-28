@@ -1,0 +1,44 @@
+name: "Build Android"
+description: "Builds Android APK or App Bundle in debug or release mode"
+
+inputs:
+  build-type:
+    description: "Build type (apk or appbundle)"
+    required: true
+  build-mode:
+    description: "Build mode (debug or release)"
+    required: true
+  flutter-build-name:
+    description: "Flutter build name (version string, e.g., 1.0.0)"
+    required: false
+  flutter-build-number:
+    description: "Flutter build number (integer, e.g., 1)"
+    required: false
+  keystore-base64:
+    description: "Base64 encoded keystore file (required for release builds)"
+    required: false
+  key-properties:
+    description: "Contents of key.properties file (required for release builds)"
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Android signing
+      if: inputs.build-mode == 'release'
+      uses: ./.github/actions/setup-android-signing
+      with:
+        keystore-base64: ${{ inputs.keystore-base64 }}
+        key-properties: ${{ inputs.key-properties }}
+
+    - name: Build Android ${{ inputs.build-type }} ${{ inputs.build-mode }}
+      shell: bash
+      run: |
+        BUILD_ARGS="--${{ inputs.build-mode }}"
+        if [ -n "${{ inputs.flutter-build-name }}" ]; then
+          BUILD_ARGS="$BUILD_ARGS --build-name=${{ inputs.flutter-build-name }}"
+        fi
+        if [ -n "${{ inputs.flutter-build-number }}" ]; then
+          BUILD_ARGS="$BUILD_ARGS --build-number=${{ inputs.flutter-build-number }}"
+        fi
+        flutter build ${{ inputs.build-type }} $BUILD_ARGS

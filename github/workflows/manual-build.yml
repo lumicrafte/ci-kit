@@ -1,0 +1,257 @@
+name: Manual Build
+run-name: >-
+  Build from ${{ inputs.build_from }}${{ inputs.build_from == 'tag' && format(' ({0})', inputs.tag_name) || '' }}${{ inputs.build_from == 'commit' && format(' ({0})', inputs.commit_hash) || '' }} -
+  ${{ inputs.build_apk_debug && 'APK-Debug' || '' }}${{ inputs.build_apk_debug && (inputs.build_apk_release || inputs.build_appbundle_debug || inputs.build_appbundle_release) && ', ' || '' }}${{ inputs.build_apk_release && 'APK-Release' || '' }}${{ inputs.build_apk_release && (inputs.build_appbundle_debug || inputs.build_appbundle_release) && ', ' || '' }}${{ inputs.build_appbundle_debug && 'Bundle-Debug' || '' }}${{ inputs.build_appbundle_debug && inputs.build_appbundle_release && ', ' || '' }}${{ inputs.build_appbundle_release && 'Bundle-Release' || '' }}${{ inputs.flutter_build_name && format(' - v{0}', inputs.flutter_build_name) || '' }}${{ inputs.flutter_build_number && format('+{0}', inputs.flutter_build_number) || '' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_name:
+        description: "Build name (optional, will be included in artifact name)"
+        required: false
+        default: "manual-build"
+        type: string
+
+      build_from:
+        description: "Build from"
+        required: true
+        type: choice
+        default: "current"
+        options:
+          - "current"
+          - "commit"
+          - "tag"
+
+      commit_hash:
+        description: 'Commit hash (only used if "Build from" is set to "commit")'
+        required: false
+        type: string
+
+      tag_name:
+        description: 'Tag name (only used if "Build from" is set to "tag")'
+        required: false
+        type: string
+
+      build_apk_debug:
+        description: "Build Android APK Debug"
+        required: false
+        type: boolean
+        default: false
+
+      build_apk_release:
+        description: "Build Android APK Release"
+        required: false
+        type: boolean
+        default: true
+
+      build_appbundle_debug:
+        description: "Build Android App Bundle Debug"
+        required: false
+        type: boolean
+        default: false
+
+      build_appbundle_release:
+        description: "Build Android App Bundle Release"
+        required: false
+        type: boolean
+        default: false
+
+      flutter_build_name:
+        description: "Flutter build name (version string, e.g., 1.0.0)"
+        required: false
+        type: string
+
+      flutter_build_number:
+        description: "Flutter build number (integer, e.g., 1)"
+        required: false
+        type: string
+
+# Configuration Variables (Optional)
+# To customize versions, set these in: Settings → Secrets and variables → Actions → Variables
+#
+# Available variables:
+#   - FLUTTER_VERSION: Flutter SDK version (default: 3.35.x)
+#   - JAVA_VERSION: Java JDK version (default: 17)
+
+jobs:
+  prepare:
+    name: Prepare Build
+    runs-on: ubuntu-24.04
+    outputs:
+      short_sha: ${{ steps.get_sha.outputs.short_sha }}
+      full_sha: ${{ steps.get_sha.outputs.full_sha }}
+      ref: ${{ steps.determine_ref.outputs.ref }}
+
+    steps:
+      - name: Determine checkout ref
+        id: determine_ref
+        run: |
+          if [[ "${{ inputs.build_from }}" == "commit" ]]; then
+            echo "ref=${{ inputs.commit_hash }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ inputs.build_from }}" == "tag" ]]; then
+            echo "ref=${{ inputs.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "ref=${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.determine_ref.outputs.ref }}
+
+      - name: Get commit SHA
+        id: get_sha
+        run: |
+          FULL_SHA=$(git rev-parse HEAD)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "full_sha=$FULL_SHA" >> $GITHUB_OUTPUT
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "Building from commit: $FULL_SHA ($SHORT_SHA)"
+
+  build-apk-debug:
+    name: Build Android APK Debug
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    needs: prepare
+    if: ${{ inputs.build_apk_debug }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Setup Flutter Environment
+        uses: ./.github/actions/setup-flutter
+        with:
+          java-version: ${{ vars.JAVA_VERSION || '17' }}
+          flutter-version: ${{ vars.FLUTTER_VERSION || '3.35.x' }}
+
+      - name: Build Android
+        uses: ./.github/actions/build-android
+        with:
+          build-type: apk
+          build-mode: debug
+          flutter-build-name: ${{ inputs.flutter_build_name }}
+          flutter-build-number: ${{ inputs.flutter_build_number }}
+
+      - name: Upload Debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.build_name }}-debug-${{ github.run_number }}-${{ needs.prepare.outputs.short_sha }}
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7
+
+  build-apk-release:
+    name: Build Android APK Release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    needs: prepare
+    if: ${{ inputs.build_apk_release }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Setup Flutter Environment
+        uses: ./.github/actions/setup-flutter
+        with:
+          java-version: ${{ vars.JAVA_VERSION || '17' }}
+          flutter-version: ${{ vars.FLUTTER_VERSION || '3.35.x' }}
+
+      - name: Build Android
+        uses: ./.github/actions/build-android
+        with:
+          build-type: apk
+          build-mode: release
+          flutter-build-name: ${{ inputs.flutter_build_name }}
+          flutter-build-number: ${{ inputs.flutter_build_number }}
+          keystore-base64: ${{ vars.ANDROID_KEYSTORE_BASE64 }}
+          key-properties: ${{ vars.ANDROID_KEY_PROPERTIES }}
+
+      - name: Upload Release APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.build_name }}-release-${{ github.run_number }}-${{ needs.prepare.outputs.short_sha }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
+
+  build-appbundle-debug:
+    name: Build Android App Bundle Debug
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    needs: prepare
+    if: ${{ inputs.build_appbundle_debug }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Setup Flutter Environment
+        uses: ./.github/actions/setup-flutter
+        with:
+          java-version: ${{ vars.JAVA_VERSION || '17' }}
+          flutter-version: ${{ vars.FLUTTER_VERSION || '3.35.x' }}
+
+      - name: Build Android
+        uses: ./.github/actions/build-android
+        with:
+          build-type: appbundle
+          build-mode: debug
+          flutter-build-name: ${{ inputs.flutter_build_name }}
+          flutter-build-number: ${{ inputs.flutter_build_number }}
+
+      - name: Upload Debug App Bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.build_name }}-bundle-debug-${{ github.run_number }}-${{ needs.prepare.outputs.short_sha }}
+          path: build/app/outputs/bundle/debug/app-debug.aab
+          retention-days: 7
+
+  build-appbundle-release:
+    name: Build Android App Bundle Release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    needs: prepare
+    if: ${{ inputs.build_appbundle_release }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Setup Flutter Environment
+        uses: ./.github/actions/setup-flutter
+        with:
+          java-version: ${{ vars.JAVA_VERSION || '17' }}
+          flutter-version: ${{ vars.FLUTTER_VERSION || '3.35.x' }}
+
+      - name: Build Android
+        uses: ./.github/actions/build-android
+        with:
+          build-type: appbundle
+          build-mode: release
+          flutter-build-name: ${{ inputs.flutter_build_name }}
+          flutter-build-number: ${{ inputs.flutter_build_number }}
+          keystore-base64: ${{ vars.ANDROID_KEYSTORE_BASE64 }}
+          key-properties: ${{ vars.ANDROID_KEY_PROPERTIES }}
+
+      - name: Upload Release App Bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.build_name }}-bundle-release-${{ github.run_number }}-${{ needs.prepare.outputs.short_sha }}
+          path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 7
+
+  # iOS Builds - Coming Soon
+  # Requires macOS runner and proper signing configuration
+  # Will support:
+  #   - IPA Debug
+  #   - IPA Release
+  #   - Archive Debug
+  #   - Archive Release

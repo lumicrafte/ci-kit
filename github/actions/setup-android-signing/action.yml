@@ -1,0 +1,51 @@
+name: "Setup Android Signing"
+description: "Sets up Android keystore and signing configuration"
+
+inputs:
+  keystore-base64:
+    description: "Base64 encoded keystore file"
+    required: true
+  key-properties:
+    description: "Contents of key.properties file"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Android signing
+      shell: bash
+      run: |
+        # Decode and save keystore
+        echo '${{ inputs.keystore-base64 }}' | base64 -d > android/app/upload-keystore.jks
+
+        # Verify keystore file was created and has content
+        if [ ! -f android/app/upload-keystore.jks ]; then
+          echo "Error: Keystore file was not created"
+          exit 1
+        fi
+
+        KEYSTORE_SIZE=$(stat -c%s android/app/upload-keystore.jks)
+        echo "Keystore file size: $KEYSTORE_SIZE bytes"
+
+        if [ "$KEYSTORE_SIZE" -lt 100 ]; then
+          echo "Error: Keystore file seems too small (possibly corrupted)"
+          exit 1
+        fi
+
+        # Create key.properties file
+        echo '${{ inputs.key-properties }}' > android/key.properties
+
+        # Remove all Windows line endings (handles both \r\n and \r)
+        sed -i 's/\r//g' android/key.properties
+
+        # Verify key.properties was created correctly
+        echo "key.properties contents (passwords hidden):"
+        sed 's/Password=.*/Password=***/' android/key.properties
+
+        # Extract password and verify keystore
+        STORE_PASSWORD=$(grep '^storePassword=' android/key.properties | sed 's/^storePassword=//')
+        echo "Verifying keystore with keytool..."
+        keytool -list -v -keystore android/app/upload-keystore.jks -storepass "$STORE_PASSWORD" 2>&1 | head -20 || {
+          echo "Error: Invalid keystore file or wrong password"
+          exit 1
+        }
