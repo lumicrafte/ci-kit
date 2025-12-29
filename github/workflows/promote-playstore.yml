@@ -1,0 +1,198 @@
+name: Promote Play Store Release
+run-name: Promote from ${{ inputs.from_track }} to ${{ inputs.to_track }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_track:
+        description: "Promote from track"
+        required: true
+        type: choice
+        options:
+          - "internal"
+          - "alpha"
+          - "beta"
+          - "production"
+
+      to_track:
+        description: "Promote to track"
+        required: true
+        type: choice
+        options:
+          - "alpha"
+          - "beta"
+          - "production"
+
+      version_code:
+        description: "Version code to promote (leave empty for latest)"
+        required: false
+        type: string
+
+      rollout_percentage:
+        description: "Staged rollout percentage (production only, 5-100)"
+        required: false
+        type: string
+        default: "100"
+
+      update_release_notes:
+        description: "Update release notes (leave empty to keep existing from source track)"
+        required: false
+        type: string
+
+      in_app_update_priority:
+        description: "In-app update priority (0-5, leave empty to keep existing)"
+        required: false
+        type: choice
+        default: ""
+        options:
+          - ""
+          - "0"
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+          - "5"
+
+# Configuration Secrets (Required)
+# To promote releases on Play Store, set these in: Settings → Secrets and variables → Actions → Secrets
+#
+# Required secrets:
+#   - PLAY_STORE_SERVICE_ACCOUNT: Service account JSON from Google Play Console
+#   - PLAY_STORE_PACKAGE_NAME: Your app's package name (e.g., com.example.app)
+
+jobs:
+  validate:
+    name: Validate Inputs
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout for actions
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/actions
+
+      - name: Validate track progression
+        run: |
+          FROM="${{ inputs.from_track }}"
+          TO="${{ inputs.to_track }}"
+
+          # Check that we're promoting forward, not backward
+          declare -A TRACK_ORDER=(["internal"]=1 ["alpha"]=2 ["beta"]=3 ["production"]=4)
+
+          FROM_ORDER=${TRACK_ORDER[$FROM]}
+          TO_ORDER=${TRACK_ORDER[$TO]}
+
+          if [ "$FROM_ORDER" -ge "$TO_ORDER" ]; then
+            echo "::error::Cannot promote from '$FROM' to '$TO'"
+            echo "::error::Valid promotion path: internal → alpha → beta → production"
+            exit 1
+          fi
+
+          echo "✓ Valid promotion: $FROM → $TO"
+
+      - name: Validate rollout percentage
+        if: inputs.to_track == 'production'
+        run: |
+          PERCENTAGE="${{ inputs.rollout_percentage }}"
+
+          if [[ ! "$PERCENTAGE" =~ ^[0-9]+$ ]]; then
+            echo "::error::Rollout percentage must be a number"
+            exit 1
+          fi
+
+          if [ "$PERCENTAGE" -lt 5 ] || [ "$PERCENTAGE" -gt 100 ]; then
+            echo "::error::Rollout percentage must be between 5 and 100"
+            exit 1
+          fi
+
+          echo "✓ Rollout percentage validation passed: ${PERCENTAGE}%"
+
+      - name: Validate Play Store secrets
+        uses: ./.github/actions/validate-playstore-secrets
+        with:
+          service-account: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT }}
+          package-name: ${{ secrets.PLAY_STORE_PACKAGE_NAME }}
+
+  promote:
+    name: Promote from ${{ inputs.from_track }} to ${{ inputs.to_track }}
+    runs-on: ubuntu-24.04
+    needs: validate
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout for actions
+        if: inputs.update_release_notes != ''
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/actions
+
+      - name: Process updated release notes
+        if: inputs.update_release_notes != ''
+        uses: ./.github/actions/process-release-notes
+        with:
+          release-notes: ${{ inputs.update_release_notes }}
+
+      - name: Promote release on Play Store
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT }}
+          packageName: ${{ secrets.PLAY_STORE_PACKAGE_NAME }}
+          track: ${{ inputs.to_track }}
+          promoteTrack: ${{ inputs.from_track }}
+          promoteReleaseCode: ${{ inputs.version_code }}
+          status: completed
+          inAppUpdatePriority: ${{ inputs.in_app_update_priority }}
+          userFraction: ${{ inputs.to_track == 'production' && (inputs.rollout_percentage / 100) || '' }}
+          whatsNewDirectory: ${{ inputs.update_release_notes != '' && 'whatsnew' || '' }}
+
+      - name: Promotion summary
+        if: success()
+        run: |
+          echo "## ✓ Successfully Promoted Release" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**From Track:** ${{ inputs.from_track }}" >> $GITHUB_STEP_SUMMARY
+          echo "**To Track:** ${{ inputs.to_track }}" >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "${{ inputs.version_code }}" ]; then
+            echo "**Version Code:** ${{ inputs.version_code }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Version:** Latest from ${{ inputs.from_track }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ inputs.to_track }}" == "production" ]; then
+            echo "**Rollout:** ${{ inputs.rollout_percentage }}%" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -n "${{ inputs.in_app_update_priority }}" ]; then
+            echo "**In-App Update Priority:** ${{ inputs.in_app_update_priority }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -n "${{ inputs.update_release_notes }}" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Release Notes:** Updated" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Release Notes:** Kept from ${{ inputs.from_track }} track" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "🎉 Release promoted to **${{ inputs.to_track }}** track!" >> $GITHUB_STEP_SUMMARY
+
+      - name: Promotion failed
+        if: failure()
+        run: |
+          echo "## ✗ Promotion Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**From Track:** ${{ inputs.from_track }}" >> $GITHUB_STEP_SUMMARY
+          echo "**To Track:** ${{ inputs.to_track }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Please check the logs above for error details." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Common issues:" >> $GITHUB_STEP_SUMMARY
+          echo "- Invalid service account credentials" >> $GITHUB_STEP_SUMMARY
+          echo "- No release available on source track" >> $GITHUB_STEP_SUMMARY
+          echo "- Version code already exists on target track" >> $GITHUB_STEP_SUMMARY
+          echo "- Insufficient permissions for service account" >> $GITHUB_STEP_SUMMARY

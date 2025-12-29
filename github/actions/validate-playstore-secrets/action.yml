@@ -1,0 +1,30 @@
+name: "Validate Play Store Secrets"
+description: "Validates required Play Store secrets are configured"
+
+inputs:
+  service-account:
+    description: "Play Store service account JSON"
+    required: true
+  package-name:
+    description: "App package name"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check required secrets
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.service-account }}" ]; then
+          echo "::error::Missing required secret: PLAY_STORE_SERVICE_ACCOUNT"
+          echo "::error::Please configure this in Settings → Secrets and variables → Actions → Secrets"
+          exit 1
+        fi
+
+        if [ -z "${{ inputs.package-name }}" ]; then
+          echo "::error::Missing required secret: PLAY_STORE_PACKAGE_NAME"
+          echo "::error::Please configure this in Settings → Secrets and variables → Actions → Secrets"
+          exit 1
+        fi
+
+        echo "✓ Required secrets are configured"

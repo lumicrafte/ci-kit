@@ -38,6 +38,12 @@ echo "  ✓ manual-build.yml"
 curl -fsSL "${REPO_URL}/github/workflows/tag-validation.yml" -o .github/workflows/tag-validation.yml
 echo "  ✓ tag-validation.yml"
 
+curl -fsSL "${REPO_URL}/github/workflows/publish-playstore.yml" -o .github/workflows/publish-playstore.yml
+echo "  ✓ publish-playstore.yml"
+
+curl -fsSL "${REPO_URL}/github/workflows/promote-playstore.yml" -o .github/workflows/promote-playstore.yml
+echo "  ✓ promote-playstore.yml"
+
 curl -fsSL "${REPO_URL}/github/workflows/README.md" -o .github/workflows/README.md 2>/dev/null || true
 echo "  ✓ README.md"
 
@@ -52,6 +58,14 @@ echo "  ✓ setup-flutter"
 
 curl -fsSL "${REPO_URL}/github/actions/build-android/action.yml" -o .github/actions/build-android/action.yml
 echo "  ✓ build-android"
+
+mkdir -p .github/actions/process-release-notes
+curl -fsSL "${REPO_URL}/github/actions/process-release-notes/action.yml" -o .github/actions/process-release-notes/action.yml
+echo "  ✓ process-release-notes"
+
+mkdir -p .github/actions/validate-playstore-secrets
+curl -fsSL "${REPO_URL}/github/actions/validate-playstore-secrets/action.yml" -o .github/actions/validate-playstore-secrets/action.yml
+echo "  ✓ validate-playstore-secrets"
 
 echo ""
 echo -e "${GREEN}✅ Installation complete!${NC}"
@@ -107,11 +121,15 @@ else
 fi
 
 echo ""
-echo "5. Set the following variables:"
+echo "5. Set required variables and secrets:"
 echo ""
-echo "   Required variables (for release builds):"
+echo "   Variables (for release builds):"
 echo "   - ANDROID_KEYSTORE_BASE64 (paste the base64 output from step 3)"
 echo "   - ANDROID_KEY_PROPERTIES (key properties file content)"
+echo ""
+echo "   Secrets (for Play Store publishing):"
+echo "   - PLAY_STORE_SERVICE_ACCOUNT (service account JSON)"
+echo "   - PLAY_STORE_PACKAGE_NAME (your app package name)"
 echo ""
 echo "   Optional variables:"
 echo "   - FLUTTER_VERSION (default: 3.35.x)"
