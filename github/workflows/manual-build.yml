@@ -81,6 +81,8 @@ jobs:
       short_sha: ${{ steps.get_sha.outputs.short_sha }}
       full_sha: ${{ steps.get_sha.outputs.full_sha }}
       ref: ${{ steps.determine_ref.outputs.ref }}
+      app_name: ${{ steps.get_pubspec.outputs.app-name }}
+      app_version: ${{ steps.get_pubspec.outputs.app-version }}
 
     steps:
       - name: Determine checkout ref
@@ -107,6 +109,13 @@ jobs:
           echo "full_sha=$FULL_SHA" >> $GITHUB_OUTPUT
           echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
           echo "Building from commit: $FULL_SHA ($SHORT_SHA)"
+
+      - name: Get app info from pubspec.yaml
+        id: get_pubspec
+        uses: ./.github/actions/get-app-info
+        with:
+          flutter-build-name: ${{ inputs.flutter_build_name }}
+          flutter-build-number: ${{ inputs.flutter_build_number }}
 
   build-apk-debug:
     name: Build Android APK Debug
@@ -138,7 +147,7 @@ jobs:
       - name: Upload Debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.build_name }}-debug-${{ github.run_number }}-${{ needs.prepare.outputs.short_sha }}
+          name: ${{ needs.prepare.outputs.app_name }}-${{ needs.prepare.outputs.app_version }}-${{ inputs.build_name }}-apk-debug-${{ github.run_number }}-${{ needs.prepare.outputs.short_sha }}
           path: build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 7
 
@@ -174,7 +183,7 @@ jobs:
       - name: Upload Release APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.build_name }}-release-${{ github.run_number }}-${{ needs.prepare.outputs.short_sha }}
+          name: ${{ needs.prepare.outputs.app_name }}-${{ needs.prepare.outputs.app_version }}-${{ inputs.build_name }}-apk-release-${{ github.run_number }}-${{ needs.prepare.outputs.short_sha }}
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
 
@@ -208,7 +217,7 @@ jobs:
       - name: Upload Debug App Bundle artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.build_name }}-bundle-debug-${{ github.run_number }}-${{ needs.prepare.outputs.short_sha }}
+          name: ${{ needs.prepare.outputs.app_name }}-${{ needs.prepare.outputs.app_version }}-${{ inputs.build_name }}-bundle-debug-${{ github.run_number }}-${{ needs.prepare.outputs.short_sha }}
           path: build/app/outputs/bundle/debug/app-debug.aab
           retention-days: 7
 
@@ -244,7 +253,7 @@ jobs:
       - name: Upload Release App Bundle artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.build_name }}-bundle-release-${{ github.run_number }}-${{ needs.prepare.outputs.short_sha }}
+          name: ${{ needs.prepare.outputs.app_name }}-${{ needs.prepare.outputs.app_version }}-${{ inputs.build_name }}-bundle-release-${{ github.run_number }}-${{ needs.prepare.outputs.short_sha }}
           path: build/app/outputs/bundle/release/app-release.aab
           retention-days: 7
 

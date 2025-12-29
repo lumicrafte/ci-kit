@@ -23,6 +23,10 @@ jobs:
         id: tag
         run: echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
+      - name: Get app info from pubspec.yaml
+        id: get_pubspec
+        uses: ./.github/actions/get-app-info
+
       - name: Validate tag format
         id: validate_format
         run: |
@@ -44,8 +48,8 @@ jobs:
           TAG_NAME="${{ steps.tag.outputs.name }}"
           echo "Validating tag matches pubspec.yaml: $TAG_NAME"
 
-          # Extract version from pubspec.yaml
-          PUBSPEC_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: *//')
+          # Get version from pubspec.yaml (via reusable action)
+          PUBSPEC_VERSION="${{ steps.get_pubspec.outputs.app-version }}"
           echo "Version in pubspec.yaml: $PUBSPEC_VERSION"
 
           # Check if tag matches pubspec version

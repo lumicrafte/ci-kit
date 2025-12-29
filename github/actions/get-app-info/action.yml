@@ -1,0 +1,52 @@
+name: "Get App Info from pubspec.yaml"
+description: "Extracts app name and version from pubspec.yaml, with optional override from inputs"
+
+inputs:
+  flutter-build-name:
+    description: "Flutter build name override (version string, e.g., 1.0.0)"
+    required: false
+  flutter-build-number:
+    description: "Flutter build number override (integer, e.g., 1)"
+    required: false
+
+outputs:
+  app-name:
+    description: "App name from pubspec.yaml"
+    value: ${{ steps.extract.outputs.app_name }}
+  app-version:
+    description: "App version (format: version+buildnumber)"
+    value: ${{ steps.extract.outputs.app_version }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Extract app info from pubspec.yaml
+      id: extract
+      shell: bash
+      run: |
+        # Extract name from pubspec.yaml
+        APP_NAME=$(grep '^name:' pubspec.yaml | sed 's/name: *//' | tr -d '[:space:]')
+        echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+        echo "App name: $APP_NAME"
+
+        # Use workflow inputs if provided, otherwise fallback to pubspec.yaml
+        if [ -n "${{ inputs.flutter-build-name }}" ] && [ -n "${{ inputs.flutter-build-number }}" ]; then
+          # Both provided via workflow input
+          APP_VERSION="${{ inputs.flutter-build-name }}+${{ inputs.flutter-build-number }}"
+        elif [ -n "${{ inputs.flutter-build-name }}" ]; then
+          # Only build name provided, extract build number from pubspec.yaml
+          PUBSPEC_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: *//' | tr -d '[:space:]')
+          BUILD_NUMBER=$(echo "$PUBSPEC_VERSION" | cut -d'+' -f2)
+          APP_VERSION="${{ inputs.flutter-build-name }}+${BUILD_NUMBER}"
+        elif [ -n "${{ inputs.flutter-build-number }}" ]; then
+          # Only build number provided, extract build name from pubspec.yaml
+          PUBSPEC_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: *//' | tr -d '[:space:]')
+          BUILD_NAME=$(echo "$PUBSPEC_VERSION" | cut -d'+' -f1)
+          APP_VERSION="${BUILD_NAME}+${{ inputs.flutter-build-number }}"
+        else
+          # Nothing provided, use pubspec.yaml as fallback
+          APP_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: *//' | tr -d '[:space:]')
+        fi
+
+        echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
+        echo "App version: $APP_VERSION"
