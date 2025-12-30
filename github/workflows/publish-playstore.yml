@@ -119,12 +119,22 @@ jobs:
       artifact_name: ${{ steps.find-bundle.outputs.artifact_name }}
 
     steps:
-      - name: Download artifacts from build run
-        uses: actions/download-artifact@v4
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ needs.parse-input.outputs.run_id }}
-          path: ./artifacts
+      - name: Download artifacts from build run using GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_ID="${{ needs.parse-input.outputs.run_id }}"
+
+          echo "Listing artifacts from run $RUN_ID..."
+          gh run view "$RUN_ID" --repo ${{ github.repository }}
+
+          echo ""
+          echo "Available artifacts:"
+          gh run view "$RUN_ID" --repo ${{ github.repository }} --json artifacts --jq '.artifacts[] | "\(.name)"'
+
+          echo ""
+          echo "Downloading artifacts..."
+          gh run download "$RUN_ID" --repo ${{ github.repository }} --dir ./artifacts
 
       - name: Find bundle-release artifact
         id: find-bundle
