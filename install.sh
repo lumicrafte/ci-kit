@@ -6,14 +6,23 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Repository information
-REPO_URL="https://raw.githubusercontent.com/lumicrafte/ci-kit/main"
+REPO_URL="https://github.com/lumicrafte/ci-kit.git"
+DEFAULT_BRANCH="main"
+VERSION="${1:-$DEFAULT_BRANCH}"  # Use first argument as version/tag, default to main
 
 echo -e "${GREEN}Flutter GitHub Workflows Installer${NC}"
 echo "======================================"
 echo ""
+
+# Check if git is installed
+if ! command -v git &> /dev/null; then
+    echo -e "${RED}Error: git is not installed. Please install git first.${NC}"
+    exit 1
+fi
 
 # Check if we're in a git repository
 if [ ! -d ".git" ]; then
@@ -21,54 +30,47 @@ if [ ! -d ".git" ]; then
     exit 1
 fi
 
-# Create .github directory structure
-mkdir -p .github/workflows
-mkdir -p .github/actions/setup-android-signing
-mkdir -p .github/actions/setup-flutter
-mkdir -p .github/actions/build-android
+# Create temporary directory for cloning
+TEMP_DIR=$(mktemp -d)
+trap "rm -rf $TEMP_DIR" EXIT
 
-# Download workflows
-echo "📥 Downloading workflows..."
-curl -fsSL "${REPO_URL}/github/workflows/ci.yml" -o .github/workflows/ci.yml
-echo "  ✓ ci.yml"
-
-curl -fsSL "${REPO_URL}/github/workflows/manual-build.yml" -o .github/workflows/manual-build.yml
-echo "  ✓ manual-build.yml"
-
-curl -fsSL "${REPO_URL}/github/workflows/tag-validation.yml" -o .github/workflows/tag-validation.yml
-echo "  ✓ tag-validation.yml"
-
-curl -fsSL "${REPO_URL}/github/workflows/publish-playstore.yml" -o .github/workflows/publish-playstore.yml
-echo "  ✓ publish-playstore.yml"
-
-curl -fsSL "${REPO_URL}/github/workflows/promote-playstore.yml" -o .github/workflows/promote-playstore.yml
-echo "  ✓ promote-playstore.yml"
-
-curl -fsSL "${REPO_URL}/github/workflows/README.md" -o .github/workflows/README.md 2>/dev/null || true
-echo "  ✓ README.md"
-
-# Download actions
+echo -e "${BLUE}📥 Downloading workflows from ci-kit...${NC}"
+if [ "$VERSION" != "$DEFAULT_BRANCH" ]; then
+    echo -e "${BLUE}Version: ${VERSION}${NC}"
+fi
 echo ""
-echo "📥 Downloading custom actions..."
-curl -fsSL "${REPO_URL}/github/actions/setup-android-signing/action.yml" -o .github/actions/setup-android-signing/action.yml
-echo "  ✓ setup-android-signing"
 
-curl -fsSL "${REPO_URL}/github/actions/setup-flutter/action.yml" -o .github/actions/setup-flutter/action.yml
-echo "  ✓ setup-flutter"
+# Shallow clone the repository
+if git clone --depth 1 --branch "$VERSION" "$REPO_URL" "$TEMP_DIR" 2>/dev/null; then
+    echo -e "${GREEN}✓ Successfully cloned ci-kit${NC}"
+else
+    echo -e "${RED}Error: Failed to clone repository or version '$VERSION' not found.${NC}"
+    echo -e "${YELLOW}Tip: Use './install.sh' for latest, or './install.sh v1.0.0' for specific version${NC}"
+    exit 1
+fi
 
-curl -fsSL "${REPO_URL}/github/actions/build-android/action.yml" -o .github/actions/build-android/action.yml
-echo "  ✓ build-android"
+# Check if .github directory exists in the cloned repo
+if [ ! -d "$TEMP_DIR/.github" ]; then
+    echo -e "${RED}Error: No .github directory found in ci-kit repository.${NC}"
+    exit 1
+fi
 
-mkdir -p .github/actions/process-release-notes
-curl -fsSL "${REPO_URL}/github/actions/process-release-notes/action.yml" -o .github/actions/process-release-notes/action.yml
-echo "  ✓ process-release-notes"
+echo ""
+echo -e "${BLUE}📦 Installing workflows and actions...${NC}"
 
-mkdir -p .github/actions/validate-playstore-secrets
-curl -fsSL "${REPO_URL}/github/actions/validate-playstore-secrets/action.yml" -o .github/actions/validate-playstore-secrets/action.yml
-echo "  ✓ validate-playstore-secrets"
+# Create .github directory if it doesn't exist
+mkdir -p .github
+
+# Copy workflows and actions
+cp -r "$TEMP_DIR/.github"/* .github/
+
+# Count installed files
+WORKFLOW_COUNT=$(find .github/workflows -name "*.yml" 2>/dev/null | wc -l)
+ACTION_COUNT=$(find .github/actions -name "action.yml" 2>/dev/null | wc -l)
 
 echo ""
 echo -e "${GREEN}✅ Installation complete!${NC}"
+echo -e "   Installed ${WORKFLOW_COUNT} workflows and ${ACTION_COUNT} actions"
 echo ""
 
 # Try to detect GitHub repository URL

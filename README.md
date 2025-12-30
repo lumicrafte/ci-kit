@@ -18,6 +18,50 @@ chmod +x install.sh
 ./install.sh
 ```
 
+### Install Specific Version
+
+Download the installer and install a specific version by providing a tag or branch name:
+
+```bash
+# Download the installer
+curl -fsSL https://raw.githubusercontent.com/lumicrafte/ci-kit/main/install.sh -o install.sh
+chmod +x install.sh
+
+# Install specific version tag
+./install.sh v1.0.0
+
+# Or install from a specific branch
+./install.sh develop
+```
+
+Or in one command:
+
+```bash
+# Install specific version
+curl -fsSL https://raw.githubusercontent.com/lumicrafte/ci-kit/main/install.sh | bash -s v1.0.0
+```
+
+### Updating Workflows
+
+To update to the latest version, download and run the installer again:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lumicrafte/ci-kit/main/install.sh | bash
+```
+
+Or to update to a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lumicrafte/ci-kit/main/install.sh | bash -s v1.0.0
+```
+
+If you already have `install.sh` downloaded, you can simply run:
+
+```bash
+./install.sh           # Latest version
+./install.sh v1.0.0    # Specific version
+```
+
 ## What's Included
 
 ### Workflows
