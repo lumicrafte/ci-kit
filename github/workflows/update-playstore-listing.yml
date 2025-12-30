@@ -1,0 +1,280 @@
+name: Update Play Store Listing
+run-name: Update Play Store Listing
+
+on:
+  workflow_dispatch:
+    inputs:
+      # ==========================================
+      # What to Update (Checkboxes)
+      # ==========================================
+
+      update_app_details:
+        description: "Update app details (category, contact info, privacy policy)"
+        type: boolean
+        default: false
+
+      update_app_info:
+        description: "Update app info (title, descriptions) from app-info.yaml"
+        type: boolean
+        default: false
+
+      update_icon:
+        description: "Update app icon"
+        type: boolean
+        default: false
+
+      update_feature_graphic:
+        description: "Update feature graphic"
+        type: boolean
+        default: false
+
+      update_screenshots:
+        description: "Update screenshots (all locales in .playstore/screenshots/)"
+        type: boolean
+        default: false
+
+      # ==========================================
+      # Advanced Options
+      # ==========================================
+
+      specific_locales:
+        description: "Specific locales to update (comma-separated, e.g., en-US,es-ES). Leave empty for all."
+        type: string
+        required: false
+
+      dry_run:
+        description: "Dry run - validate files without publishing changes"
+        type: boolean
+        default: false
+
+# Configuration (Required)
+# To update Play Store listing, configure these in: Settings → Secrets and variables → Actions
+#
+# Required secrets (Secrets tab):
+#   - PLAY_STORE_SERVICE_ACCOUNT: Service account JSON from Google Play Console
+#
+# Required variables (Variables tab):
+#   - PLAY_STORE_PACKAGE_NAME: Your app's package name (e.g., com.example.app)
+#
+# Required directory structure in your repository:
+#   .playstore/
+#   ├── metadata.yaml              # App details (category, contact, privacy policy)
+#   ├── app-info.yaml              # Multi-locale app info (title, descriptions)
+#   ├── graphics/
+#   │   ├── icon.png               # 512x512 app icon
+#   │   ├── feature-graphic.png    # 1024x500 feature graphic
+#   │   └── promo-graphic.png      # 180x120 promo graphic (optional)
+#   └── screenshots/
+#       ├── en-US/
+#       │   ├── phone/             # Phone screenshots (2-8 images)
+#       │   ├── tablet/            # Tablet screenshots (optional)
+#       │   └── wear/              # Wear screenshots (optional)
+#       └── es-ES/                 # Additional locales...
+#           └── phone/
+
+# Workflow permissions
+permissions:
+  contents: read   # Required to checkout repository for custom actions
+
+jobs:
+  validate-selection:
+    name: Validate Selection
+    runs-on: ubuntu-24.04
+    outputs:
+      has_updates: ${{ steps.check.outputs.has_updates }}
+
+    steps:
+      - name: Check at least one update selected
+        id: check
+        run: |
+          if [[ "${{ inputs.update_app_details }}" == "false" ]] && \
+             [[ "${{ inputs.update_app_info }}" == "false" ]] && \
+             [[ "${{ inputs.update_icon }}" == "false" ]] && \
+             [[ "${{ inputs.update_feature_graphic }}" == "false" ]] && \
+             [[ "${{ inputs.update_screenshots }}" == "false" ]]; then
+            echo "::error::Please select at least one component to update"
+            echo "::error::Check one or more boxes in the workflow inputs"
+            exit 1
+          fi
+
+          echo "has_updates=true" >> $GITHUB_OUTPUT
+          echo "✓ Valid selection - proceeding with updates"
+
+      - name: Validate locale format
+        if: inputs.specific_locales != ''
+        run: |
+          LOCALES="${{ inputs.specific_locales }}"
+
+          # Remove spaces and split by comma
+          IFS=',' read -ra LOCALE_ARRAY <<< "${LOCALES// /}"
+
+          for locale in "${LOCALE_ARRAY[@]}"; do
+            # Validate format: xx-XX (e.g., en-US, es-ES)
+            if [[ ! "$locale" =~ ^[a-z]{2}-[A-Z]{2}$ ]]; then
+              echo "::error::Invalid locale format: '$locale'"
+              echo "::error::Expected format: xx-XX (e.g., en-US, es-ES)"
+              exit 1
+            fi
+            echo "✓ Valid locale: $locale"
+          done
+
+  validate-config:
+    name: Validate Configuration
+    runs-on: ubuntu-24.04
+    needs: validate-selection
+
+    steps:
+      - name: Checkout for actions
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/actions
+
+      - name: Validate Play Store configuration
+        uses: ./.github/actions/validate-playstore-secrets
+        with:
+          service-account: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT }}
+          package-name: ${{ vars.PLAY_STORE_PACKAGE_NAME }}
+
+  validate-structure:
+    name: Validate .playstore Structure
+    runs-on: ubuntu-24.04
+    needs: validate-selection
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate .playstore directory structure
+        uses: ./.github/actions/validate-playstore-structure
+        with:
+          check-metadata: ${{ inputs.update_app_details }}
+          check-app-info: ${{ inputs.update_app_info }}
+          check-icon: ${{ inputs.update_icon }}
+          check-feature-graphic: ${{ inputs.update_feature_graphic }}
+          check-screenshots: ${{ inputs.update_screenshots }}
+          specific-locales: ${{ inputs.specific_locales }}
+
+  process-metadata:
+    name: Process Listing Metadata
+    runs-on: ubuntu-24.04
+    needs: [validate-config, validate-structure]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Process metadata files
+        uses: ./.github/actions/process-listing-metadata
+        with:
+          playstore-dir: .playstore
+          update-app-details: ${{ inputs.update_app_details }}
+          update-app-info: ${{ inputs.update_app_info }}
+          update-icon: ${{ inputs.update_icon }}
+          update-feature-graphic: ${{ inputs.update_feature_graphic }}
+          update-screenshots: ${{ inputs.update_screenshots }}
+          specific-locales: ${{ inputs.specific_locales }}
+
+      - name: Upload processed metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: processed-listing-metadata-${{ github.run_number }}
+          path: .processed-metadata/
+          retention-days: 1
+
+  update-listing:
+    name: Update Play Store Listing
+    runs-on: ubuntu-24.04
+    needs: process-metadata
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout for actions
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/actions
+
+      - name: Download processed metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: processed-listing-metadata-${{ github.run_number }}
+          path: .processed-metadata/
+
+      - name: Update Play Store listing
+        uses: ./.github/actions/update-playstore-listing
+        with:
+          service-account-json: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT }}
+          package-name: ${{ vars.PLAY_STORE_PACKAGE_NAME }}
+          metadata-path: .processed-metadata/
+          dry-run: ${{ inputs.dry_run }}
+
+      - name: Update summary
+        if: success()
+        run: |
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            echo "## ✓ Dry Run Complete - No Changes Published" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ✓ Play Store Listing Updated Successfully" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Package:** \`${{ vars.PLAY_STORE_PACKAGE_NAME }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Components Updated:**" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ inputs.update_app_details }}" == "true" ]]; then
+            echo "- ✅ App details (category, contact info, privacy policy)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ inputs.update_app_info }}" == "true" ]]; then
+            echo "- ✅ App info (title, short description, full description)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ inputs.update_icon }}" == "true" ]]; then
+            echo "- ✅ App icon" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ inputs.update_feature_graphic }}" == "true" ]]; then
+            echo "- ✅ Feature graphic" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ inputs.update_screenshots }}" == "true" ]]; then
+            echo "- ✅ Screenshots" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ -n "${{ inputs.specific_locales }}" ]]; then
+            echo "**Locales:** ${{ inputs.specific_locales }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Locales:** All available in .playstore/" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **This was a dry run** - No changes were published to Play Store" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Run again without 'dry run' to publish changes." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            echo "🎉 Your listing changes are now live on the Play Store!" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Update failed
+        if: failure()
+        run: |
+          echo "## ✗ Listing Update Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Package:** \`${{ vars.PLAY_STORE_PACKAGE_NAME }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Please check the logs above for error details." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Common issues:" >> $GITHUB_STEP_SUMMARY
+          echo "- Invalid service account credentials" >> $GITHUB_STEP_SUMMARY
+          echo "- Missing or invalid .playstore directory structure" >> $GITHUB_STEP_SUMMARY
+          echo "- Invalid image dimensions or formats" >> $GITHUB_STEP_SUMMARY
+          echo "- Character limit exceeded in text fields" >> $GITHUB_STEP_SUMMARY
+          echo "- Insufficient permissions for service account" >> $GITHUB_STEP_SUMMARY

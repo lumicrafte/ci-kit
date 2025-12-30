@@ -70,6 +70,7 @@ If you already have `install.sh` downloaded, you can simply run:
 - **manual-build.yml** - Manual trigger for building Android releases
 - **publish-playstore.yml** - Publish app bundles to Google Play Store tracks
 - **promote-playstore.yml** - Promote releases between Play Store tracks
+- **update-playstore-listing.yml** - Update Play Store listing metadata (title, descriptions, screenshots, graphics)
 - **tag-validation.yml** - Validates version tags and ensures proper versioning
 
 ### Custom Actions
@@ -79,6 +80,9 @@ If you already have `install.sh` downloaded, you can simply run:
 - **build-android** - Builds Android APK/AAB with configurable options
 - **process-release-notes** - Processes multilingual release notes for Play Store
 - **validate-playstore-secrets** - Validates Play Store configuration (secrets and variables)
+- **validate-playstore-structure** - Validates .playstore directory structure and files
+- **process-listing-metadata** - Processes .playstore files into API-ready format
+- **update-playstore-listing** - Updates Play Store listing via Google Play API
 
 ## Configuration
 
@@ -216,6 +220,95 @@ Replace the placeholders with your actual keystore credentials.
 - Keeps existing release notes unless you provide new ones
 
 **Available tracks:** internal → alpha → beta → production
+
+### Updating Play Store Listing
+
+Update your app's Play Store listing (title, descriptions, screenshots, graphics) without publishing a new version.
+
+#### 1. Setup .playstore Directory
+
+Create the following structure in your repository:
+
+```
+.playstore/
+├── metadata.yaml              # App details (category, contact, privacy policy)
+├── app-info.yaml              # Multi-locale app info (title, descriptions)
+├── graphics/
+│   ├── icon.png               # 512x512 app icon
+│   ├── feature-graphic.png    # 1024x500 feature graphic
+│   └── promo-graphic.png      # 180x120 promo graphic (optional)
+└── screenshots/
+    ├── en-US/
+    │   ├── phone/             # 2-8 phone screenshots (PNG/JPG)
+    │   ├── tablet/            # Tablet screenshots (optional)
+    │   └── wear/              # Wear screenshots (optional)
+    └── es-ES/                 # Additional locales...
+        └── phone/
+```
+
+#### 2. Configure metadata.yaml
+
+```yaml
+category: GAME_PUZZLE  # See Google Play categories
+contact:
+  website: https://example.com
+  email: support@example.com
+  phone: "+1234567890"
+privacy_policy_url: https://example.com/privacy
+default_language: en-US
+```
+
+#### 3. Configure app-info.yaml
+
+```yaml
+locales:
+  en-US:
+    title: "My Awesome App"                    # Max 30 characters
+    short_description: "Quick puzzle game"     # Max 80 characters
+    full_description: |                        # Max 4000 characters
+      A detailed description of the app.
+      Multiple lines supported.
+
+      Features:
+      - Feature 1
+      - Feature 2
+    video: "https://www.youtube.com/watch?v=..."  # Optional
+
+  es-ES:
+    title: "Mi Aplicación Increíble"
+    short_description: "Juego de rompecabezas rápido"
+    full_description: |
+      Una descripción detallada de la aplicación...
+```
+
+#### 4. Add Graphics
+
+- **Icon**: 512x512 PNG at `.playstore/graphics/icon.png`
+- **Feature Graphic**: 1024x500 PNG/JPG at `.playstore/graphics/feature-graphic.png`
+- **Screenshots**: 320-3840px PNG/JPG (2-8 per device type)
+
+#### 5. Run Update Workflow
+
+Go to **Actions → Update Play Store Listing**:
+
+1. Select what to update:
+   - ☑️ Update app details (metadata.yaml)
+   - ☑️ Update app info (app-info.yaml)
+   - ☑️ Update icon
+   - ☑️ Update feature graphic
+   - ☑️ Update screenshots
+
+2. Optional: Specify locales (e.g., `en-US,es-ES`) or leave empty for all
+
+3. Optional: Enable dry run to validate without publishing
+
+4. Click **Run workflow**
+
+**Tips:**
+- Use dry run first to validate your files
+- You can update individual components without touching others
+- Changes go live immediately (no draft mode for listing updates)
+- All text fields have character limits - validation will catch issues
 
 ## License
 

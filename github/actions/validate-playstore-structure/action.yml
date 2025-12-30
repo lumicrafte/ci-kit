@@ -1,0 +1,457 @@
+name: "Validate Play Store Directory Structure"
+description: "Validates .playstore directory structure and file requirements"
+
+inputs:
+  check-metadata:
+    description: "Validate metadata.yaml file"
+    required: false
+    default: "false"
+
+  check-app-info:
+    description: "Validate app-info.yaml file"
+    required: false
+    default: "false"
+
+  check-icon:
+    description: "Validate app icon"
+    required: false
+    default: "false"
+
+  check-feature-graphic:
+    description: "Validate feature graphic"
+    required: false
+    default: "false"
+
+  check-screenshots:
+    description: "Validate screenshots"
+    required: false
+    default: "false"
+
+  specific-locales:
+    description: "Comma-separated list of specific locales to validate"
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check .playstore directory exists
+      shell: bash
+      run: |
+        if [ ! -d ".playstore" ]; then
+          echo "::error::.playstore directory not found in repository root"
+          echo "::error::Please create .playstore directory and add your Play Store assets"
+          echo "::error::See workflow comments for directory structure"
+          exit 1
+        fi
+
+        echo "✓ .playstore directory found"
+
+    - name: Setup validation tools
+      shell: bash
+      run: |
+        NEED_IMAGEMAGICK=false
+        NEED_YQ=false
+
+        # Determine what tools are needed
+        if [[ "${{ inputs.check-icon }}" == "true" ]] || \
+           [[ "${{ inputs.check-feature-graphic }}" == "true" ]] || \
+           [[ "${{ inputs.check-screenshots }}" == "true" ]]; then
+          NEED_IMAGEMAGICK=true
+        fi
+
+        if [[ "${{ inputs.check-metadata }}" == "true" ]] || \
+           [[ "${{ inputs.check-app-info }}" == "true" ]]; then
+          NEED_YQ=true
+        fi
+
+        # Install ImageMagick if needed (fast on ubuntu-24.04)
+        if [ "$NEED_IMAGEMAGICK" == "true" ]; then
+          if ! command -v identify &> /dev/null; then
+            echo "Installing ImageMagick..."
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq imagemagick > /dev/null 2>&1
+            echo "✓ ImageMagick installed"
+          else
+            echo "✓ ImageMagick already available"
+          fi
+        fi
+
+        # Install yq if needed (single binary download, very fast)
+        if [ "$NEED_YQ" == "true" ]; then
+          if ! command -v yq &> /dev/null; then
+            echo "Installing yq..."
+            sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            sudo chmod +x /usr/local/bin/yq
+            echo "✓ yq installed"
+          else
+            echo "✓ yq already available"
+          fi
+        fi
+
+    - name: Validate metadata.yaml
+      if: inputs.check-metadata == 'true'
+      shell: bash
+      run: |
+        echo "Validating metadata.yaml..."
+
+        if [ ! -f ".playstore/metadata.yaml" ]; then
+          echo "::error::metadata.yaml not found at .playstore/metadata.yaml"
+          exit 1
+        fi
+
+        # Validate YAML syntax
+        if ! yq eval '.' .playstore/metadata.yaml > /dev/null 2>&1; then
+          echo "::error::Invalid YAML syntax in metadata.yaml"
+          exit 1
+        fi
+
+        # Validate required fields
+        CATEGORY=$(yq eval '.category' .playstore/metadata.yaml)
+        if [ "$CATEGORY" == "null" ] || [ -z "$CATEGORY" ]; then
+          echo "::warning::No category specified in metadata.yaml"
+        else
+          echo "  Category: $CATEGORY"
+        fi
+
+        # Validate contact info (optional but validate format if present)
+        WEBSITE=$(yq eval '.contact.website' .playstore/metadata.yaml)
+        if [ "$WEBSITE" != "null" ] && [ -n "$WEBSITE" ]; then
+          if [[ ! "$WEBSITE" =~ ^https?:// ]]; then
+            echo "::error::Invalid website URL format: $WEBSITE"
+            echo "::error::Must start with http:// or https://"
+            exit 1
+          fi
+          echo "  Website: $WEBSITE"
+        fi
+
+        EMAIL=$(yq eval '.contact.email' .playstore/metadata.yaml)
+        if [ "$EMAIL" != "null" ] && [ -n "$EMAIL" ]; then
+          if [[ ! "$EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+            echo "::error::Invalid email format: $EMAIL"
+            exit 1
+          fi
+          echo "  Email: $EMAIL"
+        fi
+
+        PRIVACY_POLICY=$(yq eval '.privacy_policy_url' .playstore/metadata.yaml)
+        if [ "$PRIVACY_POLICY" != "null" ] && [ -n "$PRIVACY_POLICY" ]; then
+          if [[ ! "$PRIVACY_POLICY" =~ ^https?:// ]]; then
+            echo "::error::Invalid privacy policy URL format: $PRIVACY_POLICY"
+            echo "::error::Must start with http:// or https://"
+            exit 1
+          fi
+          echo "  Privacy Policy: $PRIVACY_POLICY"
+        fi
+
+        echo "✓ metadata.yaml validation passed"
+
+    - name: Validate app-info.yaml
+      if: inputs.check-app-info == 'true'
+      shell: bash
+      run: |
+        echo "Validating app-info.yaml..."
+
+        if [ ! -f ".playstore/app-info.yaml" ]; then
+          echo "::error::app-info.yaml not found at .playstore/app-info.yaml"
+          exit 1
+        fi
+
+        # Validate YAML syntax
+        if ! yq eval '.' .playstore/app-info.yaml > /dev/null 2>&1; then
+          echo "::error::Invalid YAML syntax in app-info.yaml"
+          exit 1
+        fi
+
+        # Get all locales
+        LOCALES=$(yq eval '.locales | keys | .[]' .playstore/app-info.yaml)
+
+        if [ -z "$LOCALES" ]; then
+          echo "::error::No locales defined in app-info.yaml"
+          echo "::error::Please add at least one locale (e.g., en-US)"
+          exit 1
+        fi
+
+        # Filter locales if specific ones are requested
+        SPECIFIC_LOCALES="${{ inputs.specific-locales }}"
+        if [ -n "$SPECIFIC_LOCALES" ]; then
+          IFS=',' read -ra LOCALE_ARRAY <<< "${SPECIFIC_LOCALES// /}"
+          echo "Validating specific locales: ${LOCALE_ARRAY[*]}"
+        else
+          readarray -t LOCALE_ARRAY <<< "$LOCALES"
+          echo "Validating all locales: ${LOCALE_ARRAY[*]}"
+        fi
+
+        # Validate each locale
+        HAS_ERRORS=0
+        for locale in "${LOCALE_ARRAY[@]}"; do
+          locale=$(echo "$locale" | xargs)  # Trim whitespace
+
+          echo ""
+          echo "Checking locale: $locale"
+
+          # Check if locale exists in YAML
+          LOCALE_EXISTS=$(yq eval ".locales.\"$locale\"" .playstore/app-info.yaml)
+          if [ "$LOCALE_EXISTS" == "null" ]; then
+            if [ -n "$SPECIFIC_LOCALES" ]; then
+              echo "::error::Locale '$locale' not found in app-info.yaml"
+              HAS_ERRORS=1
+              continue
+            else
+              continue
+            fi
+          fi
+
+          # Validate title (max 30 chars)
+          TITLE=$(yq eval ".locales.\"$locale\".title" .playstore/app-info.yaml)
+          if [ "$TITLE" == "null" ] || [ -z "$TITLE" ]; then
+            echo "::error::Missing title for locale: $locale"
+            HAS_ERRORS=1
+          else
+            TITLE_LEN=${#TITLE}
+            if [ $TITLE_LEN -gt 30 ]; then
+              echo "::error::Title too long for $locale: $TITLE_LEN chars (max 30)"
+              echo "::error::Title: $TITLE"
+              HAS_ERRORS=1
+            else
+              echo "  ✓ Title: $TITLE ($TITLE_LEN/30 chars)"
+            fi
+          fi
+
+          # Validate short description (max 80 chars)
+          SHORT_DESC=$(yq eval ".locales.\"$locale\".short_description" .playstore/app-info.yaml)
+          if [ "$SHORT_DESC" == "null" ] || [ -z "$SHORT_DESC" ]; then
+            echo "::warning::Missing short_description for locale: $locale"
+          else
+            SHORT_LEN=${#SHORT_DESC}
+            if [ $SHORT_LEN -gt 80 ]; then
+              echo "::error::Short description too long for $locale: $SHORT_LEN chars (max 80)"
+              HAS_ERRORS=1
+            else
+              echo "  ✓ Short description: $SHORT_LEN/80 chars"
+            fi
+          fi
+
+          # Validate full description (max 4000 chars)
+          FULL_DESC=$(yq eval ".locales.\"$locale\".full_description" .playstore/app-info.yaml)
+          if [ "$FULL_DESC" == "null" ] || [ -z "$FULL_DESC" ]; then
+            echo "::warning::Missing full_description for locale: $locale"
+          else
+            FULL_LEN=${#FULL_DESC}
+            if [ $FULL_LEN -gt 4000 ]; then
+              echo "::error::Full description too long for $locale: $FULL_LEN chars (max 4000)"
+              HAS_ERRORS=1
+            else
+              echo "  ✓ Full description: $FULL_LEN/4000 chars"
+            fi
+          fi
+        done
+
+        if [ $HAS_ERRORS -eq 1 ]; then
+          exit 1
+        fi
+
+        echo ""
+        echo "✓ app-info.yaml validation passed"
+
+    - name: Validate app icon
+      if: inputs.check-icon == 'true'
+      shell: bash
+      run: |
+        echo "Validating app icon..."
+
+        ICON_PATH=".playstore/graphics/icon.png"
+
+        if [ ! -f "$ICON_PATH" ]; then
+          echo "::error::App icon not found at $ICON_PATH"
+          echo "::error::Please add a 512x512 PNG icon"
+          exit 1
+        fi
+
+        # Check file format
+        FORMAT=$(identify -format "%m" "$ICON_PATH" 2>/dev/null)
+        if [ "$FORMAT" != "PNG" ]; then
+          echo "::error::Icon must be PNG format, got: $FORMAT"
+          exit 1
+        fi
+
+        # Check dimensions
+        DIMENSIONS=$(identify -format "%wx%h" "$ICON_PATH")
+        if [ "$DIMENSIONS" != "512x512" ]; then
+          echo "::error::Icon must be 512x512, got: $DIMENSIONS"
+          exit 1
+        fi
+
+        # Check file size (warn if > 1MB)
+        SIZE=$(stat -c%s "$ICON_PATH")
+        SIZE_MB=$(echo "scale=2; $SIZE / 1024 / 1024" | bc)
+        if (( $(echo "$SIZE > 1048576" | bc -l) )); then
+          echo "::warning::Icon file size is large: ${SIZE_MB}MB (consider optimizing)"
+        fi
+
+        echo "✓ Icon validation passed ($DIMENSIONS, ${SIZE_MB}MB)"
+
+    - name: Validate feature graphic
+      if: inputs.check-feature-graphic == 'true'
+      shell: bash
+      run: |
+        echo "Validating feature graphic..."
+
+        GRAPHIC_PATH=".playstore/graphics/feature-graphic.png"
+
+        if [ ! -f "$GRAPHIC_PATH" ]; then
+          echo "::error::Feature graphic not found at $GRAPHIC_PATH"
+          echo "::error::Please add a 1024x500 PNG or JPG feature graphic"
+          exit 1
+        fi
+
+        # Check file format
+        FORMAT=$(identify -format "%m" "$GRAPHIC_PATH" 2>/dev/null)
+        if [ "$FORMAT" != "PNG" ] && [ "$FORMAT" != "JPEG" ]; then
+          echo "::error::Feature graphic must be PNG or JPG format, got: $FORMAT"
+          exit 1
+        fi
+
+        # Check dimensions
+        DIMENSIONS=$(identify -format "%wx%h" "$GRAPHIC_PATH")
+        if [ "$DIMENSIONS" != "1024x500" ]; then
+          echo "::error::Feature graphic must be 1024x500, got: $DIMENSIONS"
+          exit 1
+        fi
+
+        # Check file size (warn if > 1MB)
+        SIZE=$(stat -c%s "$GRAPHIC_PATH")
+        SIZE_MB=$(echo "scale=2; $SIZE / 1024 / 1024" | bc)
+        if (( $(echo "$SIZE > 1048576" | bc -l) )); then
+          echo "::warning::Feature graphic file size is large: ${SIZE_MB}MB (consider optimizing)"
+        fi
+
+        echo "✓ Feature graphic validation passed ($DIMENSIONS, ${SIZE_MB}MB)"
+
+    - name: Validate screenshots
+      if: inputs.check-screenshots == 'true'
+      shell: bash
+      run: |
+        echo "Validating screenshots..."
+
+        if [ ! -d ".playstore/screenshots" ]; then
+          echo "::error::Screenshots directory not found at .playstore/screenshots"
+          exit 1
+        fi
+
+        # Get locales to check
+        SPECIFIC_LOCALES="${{ inputs.specific-locales }}"
+        if [ -n "$SPECIFIC_LOCALES" ]; then
+          IFS=',' read -ra LOCALE_ARRAY <<< "${SPECIFIC_LOCALES// /}"
+          echo "Validating screenshots for specific locales: ${LOCALE_ARRAY[*]}"
+        else
+          # Get all locale directories
+          LOCALE_DIRS=(.playstore/screenshots/*/)
+          if [ ${#LOCALE_DIRS[@]} -eq 0 ]; then
+            echo "::error::No locale directories found in .playstore/screenshots/"
+            exit 1
+          fi
+          LOCALE_ARRAY=()
+          for dir in "${LOCALE_DIRS[@]}"; do
+            locale=$(basename "$dir")
+            LOCALE_ARRAY+=("$locale")
+          done
+          echo "Validating screenshots for all locales: ${LOCALE_ARRAY[*]}"
+        fi
+
+        HAS_ERRORS=0
+
+        for locale in "${LOCALE_ARRAY[@]}"; do
+          locale=$(echo "$locale" | xargs)  # Trim whitespace
+
+          echo ""
+          echo "Checking screenshots for locale: $locale"
+
+          LOCALE_DIR=".playstore/screenshots/$locale"
+
+          if [ ! -d "$LOCALE_DIR" ]; then
+            echo "::error::Screenshot directory not found: $LOCALE_DIR"
+            HAS_ERRORS=1
+            continue
+          fi
+
+          # Check device types (phone is required, tablet/wear are optional)
+          for device_type in phone tablet wear; do
+            DEVICE_DIR="$LOCALE_DIR/$device_type"
+
+            if [ ! -d "$DEVICE_DIR" ]; then
+              if [ "$device_type" == "phone" ]; then
+                echo "::error::Phone screenshots directory required: $DEVICE_DIR"
+                HAS_ERRORS=1
+              fi
+              continue
+            fi
+
+            # Count screenshots
+            SCREENSHOT_COUNT=$(find "$DEVICE_DIR" -maxdepth 1 -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) | wc -l)
+
+            if [ $SCREENSHOT_COUNT -eq 0 ]; then
+              if [ "$device_type" == "phone" ]; then
+                echo "::error::No screenshots found in $DEVICE_DIR"
+                HAS_ERRORS=1
+              fi
+              continue
+            fi
+
+            if [ $SCREENSHOT_COUNT -lt 2 ]; then
+              echo "::error::At least 2 screenshots required for $device_type, found: $SCREENSHOT_COUNT"
+              HAS_ERRORS=1
+              continue
+            fi
+
+            if [ $SCREENSHOT_COUNT -gt 8 ]; then
+              echo "::error::Maximum 8 screenshots allowed for $device_type, found: $SCREENSHOT_COUNT"
+              HAS_ERRORS=1
+              continue
+            fi
+
+            echo "  ✓ $device_type: $SCREENSHOT_COUNT screenshots"
+
+            # Validate each screenshot
+            for screenshot in "$DEVICE_DIR"/*.{png,jpg,jpeg}; do
+              [ -f "$screenshot" ] || continue
+
+              # Check file format
+              FORMAT=$(identify -format "%m" "$screenshot" 2>/dev/null)
+              if [ "$FORMAT" != "PNG" ] && [ "$FORMAT" != "JPEG" ]; then
+                echo "::error::Screenshot must be PNG or JPG: $(basename "$screenshot")"
+                HAS_ERRORS=1
+                continue
+              fi
+
+              # Check dimensions (should be reasonable for the device type)
+              WIDTH=$(identify -format "%w" "$screenshot")
+              HEIGHT=$(identify -format "%h" "$screenshot")
+
+              # Min dimensions for Play Store
+              if [ $WIDTH -lt 320 ] || [ $HEIGHT -lt 320 ]; then
+                echo "::error::Screenshot too small (min 320px): $(basename "$screenshot") is ${WIDTH}x${HEIGHT}"
+                HAS_ERRORS=1
+              fi
+
+              # Max dimensions for Play Store
+              if [ $WIDTH -gt 3840 ] || [ $HEIGHT -gt 3840 ]; then
+                echo "::error::Screenshot too large (max 3840px): $(basename "$screenshot") is ${WIDTH}x${HEIGHT}"
+                HAS_ERRORS=1
+              fi
+
+              # Warn about file size
+              SIZE=$(stat -c%s "$screenshot")
+              if (( $(echo "$SIZE > 8388608" | bc -l) )); then  # 8MB
+                SIZE_MB=$(echo "scale=2; $SIZE / 1024 / 1024" | bc)
+                echo "::warning::Screenshot is large (${SIZE_MB}MB): $(basename "$screenshot")"
+              fi
+            done
+          done
+        done
+
+        if [ $HAS_ERRORS -eq 1 ]; then
+          exit 1
+        fi
+
+        echo ""
+        echo "✓ Screenshot validation passed"

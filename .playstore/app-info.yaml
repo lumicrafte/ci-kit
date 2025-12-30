@@ -1,0 +1,93 @@
+# Play Store App Information (Multi-Locale)
+# This file contains localized app information that appears on the Play Store listing
+
+locales:
+  # English (United States)
+  en-US:
+    # App title (max 30 characters)
+    title: "CI-Kit Flutter Workflows"
+
+    # Short description (max 80 characters)
+    short_description: "Automated CI/CD workflows for Flutter projects on GitHub Actions"
+
+    # Full description (max 4000 characters)
+    # Use YAML's pipe (|) for multi-line text
+    full_description: |
+      CI-Kit is a comprehensive collection of reusable GitHub workflows and actions designed specifically for Flutter projects. Automate your entire CI/CD pipeline with pre-built workflows for building, testing, and deploying your Flutter applications.
+
+      KEY FEATURES:
+      • Continuous Integration with automated testing
+      • Android build automation (APK/AAB)
+      • Google Play Store publishing and promotion
+      • Play Store listing management
+      • Automated release management
+      • Version tag validation
+      • Multi-environment support
+
+      WORKFLOWS INCLUDED:
+      • CI workflow for automated testing and builds
+      • Manual build triggers for on-demand releases
+      • Play Store publishing to internal, alpha, beta, and production tracks
+      • Release promotion between tracks
+      • Play Store listing updates without new releases
+      • Tag validation for proper semantic versioning
+
+      EASY SETUP:
+      Install with a single command - all workflows are plug-and-play. Configure your secrets and variables once, then enjoy automated deployments for all your Flutter projects.
+
+      Perfect for individual developers and teams who want to focus on building great apps instead of managing deployment pipelines.
+
+      Get started at: github.com/lumicrafte/ci-kit
+
+    # Promotional video URL (optional)
+    # Must be a YouTube video URL
+    video: ""
+
+  # Spanish (Spain)
+  es-ES:
+    title: "CI-Kit Flujos de Trabajo"
+
+    short_description: "Flujos de trabajo CI/CD automatizados para proyectos Flutter"
+
+    full_description: |
+      CI-Kit es una colección completa de flujos de trabajo y acciones reutilizables de GitHub diseñados específicamente para proyectos Flutter. Automatiza toda tu canalización de CI/CD con flujos de trabajo prediseñados para construir, probar e implementar tus aplicaciones Flutter.
+
+      CARACTERÍSTICAS PRINCIPALES:
+      • Integración continua con pruebas automatizadas
+      • Automatización de compilación de Android (APK/AAB)
+      • Publicación y promoción en Google Play Store
+      • Gestión de listados de Play Store
+      • Gestión automatizada de lanzamientos
+      • Validación de etiquetas de versión
+      • Soporte multi-entorno
+
+      FLUJOS DE TRABAJO INCLUIDOS:
+      • Flujo de CI para pruebas y compilaciones automatizadas
+      • Activadores de compilación manual para lanzamientos bajo demanda
+      • Publicación en Play Store en pistas internas, alpha, beta y producción
+      • Promoción de lanzamientos entre pistas
+      • Actualizaciones de listado de Play Store sin nuevos lanzamientos
+      • Validación de etiquetas para versionado semántico adecuado
+
+      CONFIGURACIÓN FÁCIL:
+      Instala con un solo comando: todos los flujos de trabajo son plug-and-play. Configura tus secretos y variables una vez, y luego disfruta de implementaciones automatizadas para todos tus proyectos Flutter.
+
+      Perfecto para desarrolladores individuales y equipos que quieren enfocarse en construir excelentes aplicaciones en lugar de gestionar canalizaciones de implementación.
+
+      Comienza en: github.com/lumicrafte/ci-kit
+
+    video: ""
+
+  # You can add more locales here following the same pattern
+  # Common locale codes:
+  # - en-GB (English - United Kingdom)
+  # - fr-FR (French - France)
+  # - de-DE (German - Germany)
+  # - it-IT (Italian - Italy)
+  # - pt-BR (Portuguese - Brazil)
+  # - ja-JP (Japanese - Japan)
+  # - ko-KR (Korean - South Korea)
+  # - zh-CN (Chinese - China)
+  # - zh-TW (Chinese - Taiwan)
+  # - ar (Arabic)
+  # - hi-IN (Hindi - India)

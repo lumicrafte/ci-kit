@@ -1,0 +1,313 @@
+name: "Process Play Store Listing Metadata"
+description: "Processes .playstore directory files into API-ready format"
+
+inputs:
+  playstore-dir:
+    description: "Path to .playstore directory"
+    required: false
+    default: ".playstore"
+
+  update-app-details:
+    description: "Process app details from metadata.yaml"
+    required: false
+    default: "false"
+
+  update-app-info:
+    description: "Process app info from app-info.yaml"
+    required: false
+    default: "false"
+
+  update-icon:
+    description: "Process app icon"
+    required: false
+    default: "false"
+
+  update-feature-graphic:
+    description: "Process feature graphic"
+    required: false
+    default: "false"
+
+  update-screenshots:
+    description: "Process screenshots"
+    required: false
+    default: "false"
+
+  specific-locales:
+    description: "Comma-separated list of specific locales to process"
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup processing tools
+      shell: bash
+      run: |
+        # Install yq if needed for YAML processing
+        if [[ "${{ inputs.update-app-details }}" == "true" ]] || \
+           [[ "${{ inputs.update-app-info }}" == "true" ]]; then
+          if ! command -v yq &> /dev/null; then
+            echo "Installing yq..."
+            sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            sudo chmod +x /usr/local/bin/yq
+            echo "✓ yq installed"
+          else
+            echo "✓ yq already available"
+          fi
+        fi
+
+    - name: Initialize output directory
+      shell: bash
+      run: |
+        echo "Initializing .processed-metadata directory..."
+        mkdir -p .processed-metadata/{details,listings,images}
+        echo "{}" > .processed-metadata/metadata.json
+        echo "✓ Output directory created"
+
+    - name: Process app details (metadata.yaml)
+      if: inputs.update-app-details == 'true'
+      shell: bash
+      run: |
+        echo "Processing app details from metadata.yaml..."
+
+        METADATA_FILE="${{ inputs.playstore-dir }}/metadata.yaml"
+
+        # Extract category
+        CATEGORY=$(yq eval '.category' "$METADATA_FILE")
+        if [ "$CATEGORY" != "null" ] && [ -n "$CATEGORY" ]; then
+          echo "$CATEGORY" > .processed-metadata/details/category.txt
+          echo "  ✓ Category: $CATEGORY"
+        fi
+
+        # Extract contact info
+        WEBSITE=$(yq eval '.contact.website' "$METADATA_FILE")
+        if [ "$WEBSITE" != "null" ] && [ -n "$WEBSITE" ]; then
+          echo "$WEBSITE" > .processed-metadata/details/website.txt
+          echo "  ✓ Website: $WEBSITE"
+        fi
+
+        EMAIL=$(yq eval '.contact.email' "$METADATA_FILE")
+        if [ "$EMAIL" != "null" ] && [ -n "$EMAIL" ]; then
+          echo "$EMAIL" > .processed-metadata/details/email.txt
+          echo "  ✓ Email: $EMAIL"
+        fi
+
+        PHONE=$(yq eval '.contact.phone' "$METADATA_FILE")
+        if [ "$PHONE" != "null" ] && [ -n "$PHONE" ]; then
+          echo "$PHONE" > .processed-metadata/details/phone.txt
+          echo "  ✓ Phone: $PHONE"
+        fi
+
+        # Extract privacy policy
+        PRIVACY_POLICY=$(yq eval '.privacy_policy_url' "$METADATA_FILE")
+        if [ "$PRIVACY_POLICY" != "null" ] && [ -n "$PRIVACY_POLICY" ]; then
+          echo "$PRIVACY_POLICY" > .processed-metadata/details/privacy_policy_url.txt
+          echo "  ✓ Privacy Policy: $PRIVACY_POLICY"
+        fi
+
+        # Extract default language
+        DEFAULT_LANG=$(yq eval '.default_language' "$METADATA_FILE")
+        if [ "$DEFAULT_LANG" != "null" ] && [ -n "$DEFAULT_LANG" ]; then
+          echo "$DEFAULT_LANG" > .processed-metadata/details/default_language.txt
+          echo "  ✓ Default Language: $DEFAULT_LANG"
+        fi
+
+        echo "✓ App details processed"
+
+    - name: Process app info (app-info.yaml)
+      if: inputs.update-app-info == 'true'
+      shell: bash
+      run: |
+        echo "Processing app info from app-info.yaml..."
+
+        APP_INFO_FILE="${{ inputs.playstore-dir }}/app-info.yaml"
+
+        # Get all locales from the file
+        ALL_LOCALES=$(yq eval '.locales | keys | .[]' "$APP_INFO_FILE")
+
+        # Filter locales if specific ones are requested
+        SPECIFIC_LOCALES="${{ inputs.specific-locales }}"
+        if [ -n "$SPECIFIC_LOCALES" ]; then
+          IFS=',' read -ra LOCALE_ARRAY <<< "${SPECIFIC_LOCALES// /}"
+          echo "Processing specific locales: ${LOCALE_ARRAY[*]}"
+        else
+          readarray -t LOCALE_ARRAY <<< "$ALL_LOCALES"
+          echo "Processing all locales: ${LOCALE_ARRAY[*]}"
+        fi
+
+        # Process each locale
+        for locale in "${LOCALE_ARRAY[@]}"; do
+          locale=$(echo "$locale" | xargs)  # Trim whitespace
+
+          echo ""
+          echo "Processing locale: $locale"
+
+          # Create locale directory
+          mkdir -p ".processed-metadata/listings/$locale"
+
+          # Extract title
+          TITLE=$(yq eval ".locales.\"$locale\".title" "$APP_INFO_FILE")
+          if [ "$TITLE" != "null" ] && [ -n "$TITLE" ]; then
+            echo "$TITLE" > ".processed-metadata/listings/$locale/title.txt"
+            echo "  ✓ Title: $TITLE"
+          fi
+
+          # Extract short description
+          SHORT_DESC=$(yq eval ".locales.\"$locale\".short_description" "$APP_INFO_FILE")
+          if [ "$SHORT_DESC" != "null" ] && [ -n "$SHORT_DESC" ]; then
+            echo "$SHORT_DESC" > ".processed-metadata/listings/$locale/short_description.txt"
+            echo "  ✓ Short description (${#SHORT_DESC} chars)"
+          fi
+
+          # Extract full description
+          FULL_DESC=$(yq eval ".locales.\"$locale\".full_description" "$APP_INFO_FILE")
+          if [ "$FULL_DESC" != "null" ] && [ -n "$FULL_DESC" ]; then
+            echo "$FULL_DESC" > ".processed-metadata/listings/$locale/full_description.txt"
+            echo "  ✓ Full description (${#FULL_DESC} chars)"
+          fi
+
+          # Extract video URL (optional)
+          VIDEO=$(yq eval ".locales.\"$locale\".video" "$APP_INFO_FILE")
+          if [ "$VIDEO" != "null" ] && [ -n "$VIDEO" ]; then
+            echo "$VIDEO" > ".processed-metadata/listings/$locale/video.txt"
+            echo "  ✓ Video: $VIDEO"
+          fi
+        done
+
+        echo ""
+        echo "✓ App info processed for ${#LOCALE_ARRAY[@]} locale(s)"
+
+    - name: Process app icon
+      if: inputs.update-icon == 'true'
+      shell: bash
+      run: |
+        echo "Processing app icon..."
+
+        ICON_PATH="${{ inputs.playstore-dir }}/graphics/icon.png"
+
+        if [ -f "$ICON_PATH" ]; then
+          mkdir -p .processed-metadata/images
+          cp "$ICON_PATH" .processed-metadata/images/icon.png
+          echo "icon.png" > .processed-metadata/images/icon.list
+          echo "✓ Icon copied to processed metadata"
+        else
+          echo "::error::Icon file not found: $ICON_PATH"
+          exit 1
+        fi
+
+    - name: Process feature graphic
+      if: inputs.update-feature-graphic == 'true'
+      shell: bash
+      run: |
+        echo "Processing feature graphic..."
+
+        GRAPHIC_PATH="${{ inputs.playstore-dir }}/graphics/feature-graphic.png"
+
+        if [ -f "$GRAPHIC_PATH" ]; then
+          mkdir -p .processed-metadata/images
+          cp "$GRAPHIC_PATH" .processed-metadata/images/feature-graphic.png
+          echo "feature-graphic.png" > .processed-metadata/images/feature-graphic.list
+          echo "✓ Feature graphic copied to processed metadata"
+        else
+          echo "::error::Feature graphic file not found: $GRAPHIC_PATH"
+          exit 1
+        fi
+
+    - name: Process screenshots
+      if: inputs.update-screenshots == 'true'
+      shell: bash
+      run: |
+        echo "Processing screenshots..."
+
+        SCREENSHOTS_DIR="${{ inputs.playstore-dir }}/screenshots"
+
+        # Get locales to process
+        SPECIFIC_LOCALES="${{ inputs.specific-locales }}"
+        if [ -n "$SPECIFIC_LOCALES" ]; then
+          IFS=',' read -ra LOCALE_ARRAY <<< "${SPECIFIC_LOCALES// /}"
+          echo "Processing screenshots for specific locales: ${LOCALE_ARRAY[*]}"
+        else
+          # Get all locale directories
+          LOCALE_DIRS=("$SCREENSHOTS_DIR"/*)
+          LOCALE_ARRAY=()
+          for dir in "${LOCALE_DIRS[@]}"; do
+            if [ -d "$dir" ]; then
+              locale=$(basename "$dir")
+              LOCALE_ARRAY+=("$locale")
+            fi
+          done
+          echo "Processing screenshots for all locales: ${LOCALE_ARRAY[*]}"
+        fi
+
+        # Process each locale
+        for locale in "${LOCALE_ARRAY[@]}"; do
+          locale=$(echo "$locale" | xargs)  # Trim whitespace
+
+          echo ""
+          echo "Processing screenshots for locale: $locale"
+
+          LOCALE_DIR="$SCREENSHOTS_DIR/$locale"
+
+          if [ ! -d "$LOCALE_DIR" ]; then
+            echo "::warning::Screenshot directory not found: $LOCALE_DIR"
+            continue
+          fi
+
+          # Process each device type
+          for device_type in phone tablet wear; do
+            DEVICE_DIR="$LOCALE_DIR/$device_type"
+
+            if [ ! -d "$DEVICE_DIR" ]; then
+              continue
+            fi
+
+            # Create output directory
+            mkdir -p ".processed-metadata/images/screenshots/$locale/$device_type"
+
+            # Copy screenshots in order
+            SCREENSHOT_NUM=1
+            for screenshot in "$DEVICE_DIR"/*.{png,jpg,jpeg}; do
+              [ -f "$screenshot" ] || continue
+
+              # Get file extension
+              EXT="${screenshot##*.}"
+
+              # Copy with numbered name
+              cp "$screenshot" ".processed-metadata/images/screenshots/$locale/$device_type/$SCREENSHOT_NUM.$EXT"
+
+              ((SCREENSHOT_NUM++))
+            done
+
+            SCREENSHOT_COUNT=$((SCREENSHOT_NUM - 1))
+            if [ $SCREENSHOT_COUNT -gt 0 ]; then
+              echo "  ✓ $device_type: $SCREENSHOT_COUNT screenshot(s)"
+            fi
+          done
+        done
+
+        echo ""
+        echo "✓ Screenshots processed for ${#LOCALE_ARRAY[@]} locale(s)"
+
+    - name: Generate metadata summary
+      shell: bash
+      run: |
+        echo "Generating metadata summary..."
+
+        # Create a JSON summary of what was processed
+        cat > .processed-metadata/metadata.json <<EOF
+        {
+          "processed_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+          "components": {
+            "app_details": ${{ inputs.update-app-details }},
+            "app_info": ${{ inputs.update-app-info }},
+            "icon": ${{ inputs.update-icon }},
+            "feature_graphic": ${{ inputs.update-feature-graphic }},
+            "screenshots": ${{ inputs.update-screenshots }}
+          },
+          "specific_locales": "${{ inputs.specific-locales }}"
+        }
+        EOF
+
+        echo "✓ Metadata summary generated"
+        echo ""
+        echo "Processed metadata structure:"
+        tree -L 3 .processed-metadata/ 2>/dev/null || find .processed-metadata -type f | head -20

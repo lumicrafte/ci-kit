@@ -1,0 +1,19 @@
+# Play Store App Details
+# This file contains app-level metadata that applies to all locales
+
+# App category (see Google Play categories)
+# Common categories: GAME_PUZZLE, GAME_ARCADE, GAME_ACTION, PRODUCTIVITY, TOOLS, etc.
+category: PRODUCTIVITY
+
+# Contact information (all optional but recommended)
+contact:
+  website: https://example.com
+  email: support@example.com
+  phone: "+1-555-0123"
+
+# Privacy policy URL (required for apps that access sensitive data)
+privacy_policy_url: https://example.com/privacy
+
+# Default language for the app listing
+# This is the primary language that will be shown if a user's language is not available
+default_language: en-US

@@ -1,0 +1,29 @@
+name: 'Update Google Play Store Listing'
+description: 'Custom action to update Play Store listing metadata without publishing a new version'
+author: 'Custom'
+
+inputs:
+  service-account-json:
+    description: 'Service account JSON (plain text or base64 encoded)'
+    required: true
+  package-name:
+    description: 'Android package name (e.g., com.example.app)'
+    required: true
+  metadata-path:
+    description: 'Path to processed metadata directory'
+    required: true
+    default: '.processed-metadata'
+  dry-run:
+    description: 'Validate and preview changes without publishing'
+    required: false
+    default: 'false'
+
+outputs:
+  edit-id:
+    description: 'The Google Play edit ID used for this operation'
+  updated-components:
+    description: 'JSON array of components that were updated'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
