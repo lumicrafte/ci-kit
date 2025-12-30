@@ -21,22 +21,32 @@ runs:
           echo "Processing multilingual release notes (XML-like format)..."
 
           # Extract each language tag and create corresponding files
-          echo "$NOTES" | grep -oP '<[a-z]{2}-[A-Z]{2}>.*?</[a-z]{2}-[A-Z]{2}>' | while read -r tag; do
-            # Extract locale code (e.g., en-US from <en-US>text</en-US>)
-            LOCALE=$(echo "$tag" | grep -oP '(?<=<)[a-z]{2}-[A-Z]{2}(?=>)')
-            # Extract content between tags
-            CONTENT=$(echo "$tag" | sed -E "s|<$LOCALE>(.*)</$LOCALE>|\1|")
+          # Use perl for better regex support with multiline matching
+          echo "$NOTES" | perl -0777 -ne '
+            while (/<([a-z]{2}-[A-Z]{2})>(.*?)<\/\1>/gs) {
+              my $locale = $1;
+              my $content = $2;
 
-            echo "$CONTENT" > "whatsnew/whatsnew-$LOCALE"
-            echo "✓ Created whatsnew-$LOCALE"
-          done
+              # Trim leading and trailing whitespace (including newlines)
+              $content =~ s/^\s+|\s+$//g;
+
+              # Write to file if content is not empty
+              if ($content ne "") {
+                open(my $fh, ">", "whatsnew/whatsnew-$locale") or die "Cannot write file: $!";
+                print $fh $content;
+                close($fh);
+                print "✓ Created whatsnew-$locale\n";
+              }
+            }
+          '
 
           echo ""
           echo "Release notes created for languages:"
           ls -1 whatsnew/
         else
           echo "Processing single language release notes (plain text)..."
-          echo "$NOTES" > whatsnew/whatsnew-en-US
+          # Trim leading and trailing whitespace for plain text too
+          echo "$NOTES" | perl -pe 's/^\s+|\s+$//g' > whatsnew/whatsnew-en-US
           echo "✓ Created whatsnew-en-US"
         fi
 
