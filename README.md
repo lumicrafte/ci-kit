@@ -134,33 +134,85 @@ Replace the placeholders with your actual keystore credentials.
 
 ### Setting Up Play Store Publishing
 
-#### 1. Create Service Account
+#### 1. Create Service Account in Google Cloud Console
 
-1. [Google Play Console](https://play.google.com/console) → **Setup → API access**
-2. **Create new service account** → Follow link to Google Cloud Console
-3. Create service account, download JSON key
-4. Back in Play Console → Grant access → Set permissions: **Release apps to production**
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Select your project (or create a new one)
+3. Navigate to **IAM & Admin → Service Accounts**
+4. Click **Create Service Account**
+5. Name it (e.g., "GitHub Actions Publisher")
+6. Click **Create and Continue**
+7. Skip granting roles (permissions handled in Play Console)
+8. Click **Done**
+9. Click on the created service account → **Keys** tab
+10. **Add Key → Create new key → JSON**
+11. Download the JSON file (keep it secure!)
+12. Note the service account email (looks like `name@project-id.iam.gserviceaccount.com`)
 
-#### 2. Configure Secrets
+#### 2. Grant Permissions in Google Play Console
 
-**Settings → Secrets and variables → Actions → Secrets:**
+1. Go to [Google Play Console](https://play.google.com/console)
+2. Navigate to **Users and permissions** (left sidebar)
+3. Click **Invite new users**
+4. Enter the **service account email** from step 1
+5. **Option A - Create Permission Group (Recommended):**
+   - Click **Create and manage permission groups**
+   - Click **Create permission group**
+   - Name it (e.g., "API Publishers")
+   - In **Account permissions** tab, select:
+     - ✅ Release to production, exclude devices, and use Play App Signing
+     - ✅ Release apps to testing tracks
+     - ✅ Manage store presence
+   - In **App permissions** tab, select your app and grant the same permissions
+   - Click **Create**
+   - Go back to invite user, assign the permission group
 
-- `PLAY_STORE_SERVICE_ACCOUNT`: Service account JSON content
-- `PLAY_STORE_PACKAGE_NAME`: Your package name (e.g., `com.example.app`)
+   **Option B - Direct Permissions:**
+   - Select permissions manually in both Account and App tabs
+   - Grant the same permissions listed above
+
+6. Click **Invite user** / **Send invite**
+
+#### 3. Configure Secrets
+
+**GitHub Repository → Settings → Secrets and variables → Actions → Secrets:**
+
+- `PLAY_STORE_SERVICE_ACCOUNT`: Paste the entire content of the downloaded JSON file from step 1
+- `PLAY_STORE_PACKAGE_NAME`: Your app's package name (e.g., `com.example.app`)
 
 ## Usage
 
 ### Publishing to Play Store
 
 **Publish new build:**
-1. Build: **Actions → Manual Build** → Select "Build Android App Bundle Release"
-2. Publish: **Actions → Publish to Play Store** → Paste artifact name → Select track
+1. **Build**: Go to **Actions → Manual Build**
+   - Click **Run workflow**
+   - Select "Build Android App Bundle Release"
+   - Click **Run workflow**
+   - Wait for build to complete
+   - Copy the workflow run URL from your browser (e.g., `https://github.com/owner/repo/actions/runs/123456`)
+
+2. **Publish**: Go to **Actions → Publish to Play Store**
+   - Click **Run workflow**
+   - Paste the **build run URL** (from step 1)
+   - Select **track** (internal, alpha, beta, or production)
+   - Select **release status**:
+     - `draft` - Save release for manual review (use for unpublished/draft apps)
+     - `completed` - Publish immediately (default)
+     - `inProgress` - Start staged rollout
+     - `halted` - Pause an existing rollout
+   - Optional: Add release notes and configure rollout percentage
+   - Click **Run workflow**
+
+**Important for first-time releases:**
+- If your app is not yet published, use `release_status: draft`
+- After the first manual publish through Play Console, use `release_status: completed`
 
 **Promote between tracks:**
 - **Actions → Promote Play Store Release** → Select from/to tracks
 - Keeps existing release notes unless you provide new ones
 
-**Tracks:** internal → alpha → beta → production
+**Available tracks:** internal → alpha → beta → production
 
 ## License
 
