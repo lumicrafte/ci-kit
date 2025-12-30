@@ -51,24 +51,34 @@ on:
 #   - PLAY_STORE_SERVICE_ACCOUNT: Service account JSON from Google Play Console
 #   - PLAY_STORE_PACKAGE_NAME: Your app's package name (e.g., com.example.app)
 
+# Workflow permissions required for cross-run artifact access
+permissions:
+  actions: read    # Required to access workflow run data and download artifacts from other runs
+  contents: read   # Required to checkout repository for custom actions
+
 jobs:
   parse-input:
     name: Parse Build Run URL
     runs-on: ubuntu-24.04
     outputs:
       run_id: ${{ steps.parse.outputs.run_id }}
+      repository: ${{ steps.parse.outputs.repository }}
 
     steps:
-      - name: Extract run ID from URL
+      - name: Extract run ID and repository from URL
         id: parse
         run: |
           URL="${{ inputs.build_run_url }}"
 
-          # Extract run ID from URL (matches "actions/runs/12345")
-          if [[ "$URL" =~ actions/runs/([0-9]+) ]]; then
-            RUN_ID="${BASH_REMATCH[1]}"
+          # Extract repository and run ID from URL
+          # Format: https://github.com/owner/repo/actions/runs/12345
+          if [[ "$URL" =~ github\.com/([^/]+/[^/]+)/actions/runs/([0-9]+) ]]; then
+            REPO="${BASH_REMATCH[1]}"
+            RUN_ID="${BASH_REMATCH[2]}"
+            echo "repository=$REPO" >> $GITHUB_OUTPUT
             echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
-            echo "✓ Extracted run ID from URL: $RUN_ID"
+            echo "✓ Extracted repository: $REPO"
+            echo "✓ Extracted run ID: $RUN_ID"
           else
             echo "::error::Invalid GitHub Actions run URL format"
             echo "::error::Expected format: https://github.com/owner/repo/actions/runs/123456"
@@ -124,17 +134,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           RUN_ID="${{ needs.parse-input.outputs.run_id }}"
+          REPO="${{ needs.parse-input.outputs.repository }}"
 
-          echo "Listing artifacts from run $RUN_ID..."
-          gh run view "$RUN_ID" --repo ${{ github.repository }}
+          echo "Listing artifacts from run $RUN_ID in repository $REPO..."
+          gh run view "$RUN_ID" --repo "$REPO"
 
           echo ""
           echo "Available artifacts:"
-          gh run view "$RUN_ID" --repo ${{ github.repository }} --json artifacts --jq '.artifacts[] | "\(.name)"'
+          gh run view "$RUN_ID" --repo "$REPO" --json artifacts --jq '.artifacts[] | "\(.name)"'
 
           echo ""
           echo "Downloading artifacts..."
-          gh run download "$RUN_ID" --repo ${{ github.repository }} --dir ./artifacts
+          gh run download "$RUN_ID" --repo "$REPO" --dir ./artifacts
 
       - name: Find bundle-release artifact
         id: find-bundle
