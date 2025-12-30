@@ -1,0 +1,26 @@
+{
+  "name": "publish-playstore-action",
+  "version": "1.0.0",
+  "description": "Custom GitHub Action for publishing Android apps to Google Play Store",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "ncc build src/index.js -o dist --minify"
+  },
+  "keywords": [
+    "github-actions",
+    "google-play",
+    "android",
+    "publishing"
+  ],
+  "author": "Custom",
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "@actions/glob": "^0.5.0",
+    "googleapis": "^144.0.0",
+    "google-auth-library": "^9.15.0"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.3"
+  }
+}

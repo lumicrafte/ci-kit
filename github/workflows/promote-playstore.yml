@@ -135,17 +135,17 @@ jobs:
           release-notes: ${{ inputs.update_release_notes }}
 
       - name: Promote release on Play Store
-        uses: r0adkll/upload-google-play@v1
+        uses: ./.github/actions/publish-playstore
         with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT }}
-          packageName: ${{ secrets.PLAY_STORE_PACKAGE_NAME }}
+          service-account-json: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT }}
+          package-name: ${{ secrets.PLAY_STORE_PACKAGE_NAME }}
           track: ${{ inputs.to_track }}
-          promoteTrack: ${{ inputs.from_track }}
-          promoteReleaseCode: ${{ inputs.version_code }}
+          promote-track: ${{ inputs.from_track }}
+          promote-release-code: ${{ inputs.version_code }}
           status: completed
-          inAppUpdatePriority: ${{ inputs.in_app_update_priority }}
-          userFraction: ${{ inputs.to_track == 'production' && (inputs.rollout_percentage / 100) || '' }}
-          whatsNewDirectory: ${{ inputs.update_release_notes != '' && 'whatsnew' || '' }}
+          in-app-update-priority: ${{ inputs.in_app_update_priority }}
+          rollout-percentage: ${{ inputs.to_track == 'production' && inputs.rollout_percentage || '' }}
+          whats-new-directory: ${{ inputs.update_release_notes != '' && 'whatsnew' || '' }}
 
       - name: Promotion summary
         if: success()

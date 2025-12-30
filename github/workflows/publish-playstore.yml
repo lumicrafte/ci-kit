@@ -169,16 +169,16 @@ jobs:
           release-notes: ${{ inputs.release_notes }}
 
       - name: Publish to Play Store (${{ inputs.track }} track)
-        uses: r0adkll/upload-google-play@v1
+        uses: ./.github/actions/publish-playstore
         with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT }}
-          packageName: ${{ secrets.PLAY_STORE_PACKAGE_NAME }}
-          releaseFiles: app-release.aab
+          service-account-json: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT }}
+          package-name: ${{ secrets.PLAY_STORE_PACKAGE_NAME }}
+          release-files: app-release.aab
           track: ${{ inputs.track }}
           status: completed
-          inAppUpdatePriority: ${{ inputs.in_app_update_priority }}
-          userFraction: ${{ inputs.track == 'production' && (inputs.rollout_percentage / 100) || '' }}
-          whatsNewDirectory: ${{ inputs.release_notes != '' && 'whatsnew' || '' }}
+          in-app-update-priority: ${{ inputs.in_app_update_priority }}
+          rollout-percentage: ${{ inputs.track == 'production' && inputs.rollout_percentage || '' }}
+          whats-new-directory: ${{ inputs.release_notes != '' && 'whatsnew' || '' }}
 
       - name: Publishing summary
         if: success()

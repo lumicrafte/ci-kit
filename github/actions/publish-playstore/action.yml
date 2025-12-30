@@ -1,0 +1,47 @@
+name: 'Publish to Google Play Store'
+description: 'Custom action to publish Android apps to Google Play Store using official Google APIs'
+author: 'Custom'
+
+inputs:
+  service-account-json:
+    description: 'Service account JSON (plain text or base64 encoded)'
+    required: true
+  package-name:
+    description: 'Android package name (e.g., com.example.app)'
+    required: true
+  release-files:
+    description: 'Path to AAB or APK file to upload'
+    required: false
+  track:
+    description: 'Target track (internal/alpha/beta/production)'
+    required: true
+  status:
+    description: 'Release status (draft/completed/inProgress)'
+    required: false
+    default: 'completed'
+  rollout-percentage:
+    description: 'Staged rollout percentage (5-100, e.g., 10 for 10% rollout)'
+    required: false
+  in-app-update-priority:
+    description: 'In-app update priority (0-5, where 5 is highest priority)'
+    required: false
+    default: '0'
+  whats-new-directory:
+    description: 'Directory containing whatsnew-{locale} files for release notes'
+    required: false
+  promote-track:
+    description: 'Source track to promote from (for promotion operations)'
+    required: false
+  promote-release-code:
+    description: 'Specific version code to promote (optional, uses latest if not specified)'
+    required: false
+
+outputs:
+  version-code:
+    description: 'The version code that was published or promoted'
+  edit-id:
+    description: 'The Google Play edit ID used for this operation'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
