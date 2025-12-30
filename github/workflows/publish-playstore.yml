@@ -210,7 +210,6 @@ jobs:
 
     steps:
       - name: Checkout for actions
-        if: inputs.release_notes != ''
         uses: actions/checkout@v4
         with:
           sparse-checkout: |
