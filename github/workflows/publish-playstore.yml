@@ -1,11 +1,11 @@
 name: Publish to Play Store
-run-name: Publish to ${{ inputs.track }} track${{ inputs.artifact_name && format(' - {0}', inputs.artifact_name) || '' }}
+run-name: Publish to ${{ inputs.track }} track
 
 on:
   workflow_dispatch:
     inputs:
-      artifact_name:
-        description: "Artifact name from manual-build workflow (e.g., myapp-1.0.0-manual-build-bundle-release-123-abc1234)"
+      build_run_url:
+        description: "GitHub Actions run URL from manual-build workflow (e.g., https://github.com/owner/repo/actions/runs/123456)"
         required: true
         type: string
 
@@ -52,9 +52,34 @@ on:
 #   - PLAY_STORE_PACKAGE_NAME: Your app's package name (e.g., com.example.app)
 
 jobs:
+  parse-input:
+    name: Parse Build Run URL
+    runs-on: ubuntu-24.04
+    outputs:
+      run_id: ${{ steps.parse.outputs.run_id }}
+
+    steps:
+      - name: Extract run ID from URL
+        id: parse
+        run: |
+          URL="${{ inputs.build_run_url }}"
+
+          # Extract run ID from URL (matches "actions/runs/12345")
+          if [[ "$URL" =~ actions/runs/([0-9]+) ]]; then
+            RUN_ID="${BASH_REMATCH[1]}"
+            echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+            echo "✓ Extracted run ID from URL: $RUN_ID"
+          else
+            echo "::error::Invalid GitHub Actions run URL format"
+            echo "::error::Expected format: https://github.com/owner/repo/actions/runs/123456"
+            echo "::error::Provided: $URL"
+            exit 1
+          fi
+
   validate:
     name: Validate Inputs
     runs-on: ubuntu-24.04
+    needs: parse-input
 
     steps:
       - name: Checkout for actions
@@ -62,19 +87,6 @@ jobs:
         with:
           sparse-checkout: |
             .github/actions
-
-      - name: Validate artifact name
-        run: |
-          ARTIFACT="${{ inputs.artifact_name }}"
-
-          # Check if artifact name contains "bundle-release"
-          if [[ ! "$ARTIFACT" =~ bundle-release ]]; then
-            echo "::error::Artifact name must be for a release app bundle (should contain 'bundle-release')"
-            echo "::error::Provided: $ARTIFACT"
-            exit 1
-          fi
-
-          echo "✓ Artifact name validation passed"
 
       - name: Validate rollout percentage
         if: inputs.track == 'production'
@@ -102,14 +114,42 @@ jobs:
   download-artifact:
     name: Download App Bundle
     runs-on: ubuntu-24.04
-    needs: validate
+    needs: [parse-input, validate]
+    outputs:
+      artifact_name: ${{ steps.find-bundle.outputs.artifact_name }}
 
     steps:
-      - name: Download artifact
+      - name: Download artifacts from build run
         uses: actions/download-artifact@v4
         with:
-          name: ${{ inputs.artifact_name }}
-          path: ./aab
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ needs.parse-input.outputs.run_id }}
+          path: ./artifacts
+
+      - name: Find bundle-release artifact
+        id: find-bundle
+        run: |
+          echo "Downloaded artifacts:"
+          ls -la ./artifacts/
+
+          # Find the bundle-release artifact directory
+          BUNDLE_DIR=$(find ./artifacts -type d -name "*-bundle-release-*" | head -n 1)
+
+          if [ -z "$BUNDLE_DIR" ]; then
+            echo "::error::No bundle-release artifact found in the build run"
+            echo "::error::Available artifacts:"
+            ls -la ./artifacts/
+            exit 1
+          fi
+
+          ARTIFACT_NAME=$(basename "$BUNDLE_DIR")
+          echo "artifact_name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
+          echo "✓ Found bundle artifact: $ARTIFACT_NAME"
+
+          # Move the bundle to expected location
+          mkdir -p ./aab
+          mv "$BUNDLE_DIR"/* ./aab/
+          echo "✓ Moved bundle to ./aab/"
 
       - name: Verify AAB exists
         run: |
@@ -186,7 +226,8 @@ jobs:
           echo "## ✓ Successfully Published to Play Store" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Track:** ${{ inputs.track }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Artifact:** \`${{ inputs.artifact_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Artifact:** \`${{ needs.download-artifact.outputs.artifact_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Run:** ${{ inputs.build_run_url }}" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ inputs.track }}" == "production" ]; then
             echo "**Rollout:** ${{ inputs.rollout_percentage }}%" >> $GITHUB_STEP_SUMMARY
@@ -210,7 +251,7 @@ jobs:
           echo "## ✗ Publishing Failed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Track:** ${{ inputs.track }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Artifact:** \`${{ inputs.artifact_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Run:** ${{ inputs.build_run_url }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Please check the logs above for error details." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
