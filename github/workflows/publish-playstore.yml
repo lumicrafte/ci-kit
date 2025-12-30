@@ -136,12 +136,11 @@ jobs:
           RUN_ID="${{ needs.parse-input.outputs.run_id }}"
           REPO="${{ needs.parse-input.outputs.repository }}"
 
-          echo "Listing artifacts from run $RUN_ID in repository $REPO..."
-          gh run view "$RUN_ID" --repo "$REPO"
+          echo "Fetching artifacts from run $RUN_ID in repository $REPO..."
 
-          echo ""
+          # List artifacts using GitHub REST API
           echo "Available artifacts:"
-          gh run view "$RUN_ID" --repo "$REPO" --json artifacts --jq '.artifacts[] | "\(.name)"'
+          gh api "/repos/$REPO/actions/runs/$RUN_ID/artifacts" --jq '.artifacts[] | "- \(.name) (size: \(.size_in_bytes) bytes)"'
 
           echo ""
           echo "Downloading artifacts..."
