@@ -55,11 +55,13 @@ on:
           - "inProgress"
           - "halted"
 
-# Configuration Secrets (Required)
-# To publish to Play Store, set these in: Settings → Secrets and variables → Actions → Secrets
+# Configuration (Required)
+# To publish to Play Store, configure these in: Settings → Secrets and variables → Actions
 #
-# Required secrets:
+# Required secrets (Secrets tab):
 #   - PLAY_STORE_SERVICE_ACCOUNT: Service account JSON from Google Play Console
+#
+# Required variables (Variables tab):
 #   - PLAY_STORE_PACKAGE_NAME: Your app's package name (e.g., com.example.app)
 
 # Workflow permissions required for cross-run artifact access
@@ -126,11 +128,11 @@ jobs:
 
           echo "✓ Rollout percentage validation passed: ${PERCENTAGE}%"
 
-      - name: Validate Play Store secrets
+      - name: Validate Play Store configuration
         uses: ./.github/actions/validate-playstore-secrets
         with:
           service-account: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT }}
-          package-name: ${{ secrets.PLAY_STORE_PACKAGE_NAME }}
+          package-name: ${{ vars.PLAY_STORE_PACKAGE_NAME }}
 
   download-artifact:
     name: Download App Bundle
@@ -242,7 +244,7 @@ jobs:
         uses: ./.github/actions/publish-playstore
         with:
           service-account-json: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT }}
-          package-name: ${{ secrets.PLAY_STORE_PACKAGE_NAME }}
+          package-name: ${{ vars.PLAY_STORE_PACKAGE_NAME }}
           release-files: app-release.aab
           track: ${{ inputs.track }}
           status: ${{ inputs.release_status }}

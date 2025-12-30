@@ -78,7 +78,7 @@ If you already have `install.sh` downloaded, you can simply run:
 - **setup-flutter** - Sets up Flutter SDK with caching
 - **build-android** - Builds Android APK/AAB with configurable options
 - **process-release-notes** - Processes multilingual release notes for Play Store
-- **validate-playstore-secrets** - Validates Play Store secrets configuration
+- **validate-playstore-secrets** - Validates Play Store configuration (secrets and variables)
 
 ## Configuration
 
@@ -94,13 +94,13 @@ Go to **Settings → Secrets and variables → Actions → Variables** and add:
 |----------|-------------|---------|
 | `ANDROID_KEYSTORE_BASE64` | Base64 encoded keystore file | *([see below](#setting-up-android-signing))* |
 | `ANDROID_KEY_PROPERTIES` | Key properties file content | *([see below](#setting-up-android-signing))* |
+| `PLAY_STORE_PACKAGE_NAME` | Your app's package name (for Play Store publishing) | `com.example.myapp` |
 
 ### Required Secrets (for Play Store publishing)
 
 | Secret | Description | Example |
 |--------|-------------|---------|
 | `PLAY_STORE_SERVICE_ACCOUNT` | Service account JSON from Google Play Console | *([see below](#setting-up-play-store-publishing))* |
-| `PLAY_STORE_PACKAGE_NAME` | Your app's package name | `com.example.myapp` |
 
 ### Optional Variables
 
@@ -173,11 +173,14 @@ Replace the placeholders with your actual keystore credentials.
 
 6. Click **Invite user** / **Send invite**
 
-#### 3. Configure Secrets
+#### 3. Configure Secrets and Variables
 
-**GitHub Repository → Settings → Secrets and variables → Actions → Secrets:**
+**GitHub Repository → Settings → Secrets and variables → Actions:**
 
+**Secrets tab:**
 - `PLAY_STORE_SERVICE_ACCOUNT`: Paste the entire content of the downloaded JSON file from step 1
+
+**Variables tab:**
 - `PLAY_STORE_PACKAGE_NAME`: Your app's package name (e.g., `com.example.app`)
 
 ## Usage
