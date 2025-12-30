@@ -38,31 +38,26 @@ echo -e "${BLUE}📥 Downloading workflows from ci-kit...${NC}"
 if [ "$VERSION" != "$DEFAULT_BRANCH" ]; then
     echo -e "${BLUE}Version: ${VERSION}${NC}"
 fi
-echo ""
 
-# Shallow clone the repository
-if git clone --depth 1 --branch "$VERSION" "$REPO_URL" "$TEMP_DIR" 2>/dev/null; then
-    echo -e "${GREEN}✓ Successfully cloned ci-kit${NC}"
+# Shallow clone the repository with progress
+if git clone --depth 1 --branch "$VERSION" --progress "$REPO_URL" "$TEMP_DIR" 2>&1; then
+    echo ""
+    echo -e "${GREEN}✓ Successfully downloaded ci-kit${NC}"
 else
+    echo ""
     echo -e "${RED}Error: Failed to clone repository or version '$VERSION' not found.${NC}"
     echo -e "${YELLOW}Tip: Use './install.sh' for latest, or './install.sh v1.0.0' for specific version${NC}"
-    exit 1
-fi
-
-# Check if .github directory exists in the cloned repo
-if [ ! -d "$TEMP_DIR/.github" ]; then
-    echo -e "${RED}Error: No .github directory found in ci-kit repository.${NC}"
     exit 1
 fi
 
 echo ""
 echo -e "${BLUE}📦 Installing workflows and actions...${NC}"
 
-# Create .github directory if it doesn't exist
+# Create .github directory in user's repo if it doesn't exist
 mkdir -p .github
 
-# Copy workflows and actions
-cp -r "$TEMP_DIR/.github"/* .github/
+# Copy workflows and actions from ci-kit's github/ to user's .github/
+cp -r "$TEMP_DIR/github"/* .github/
 
 # Count installed files
 WORKFLOW_COUNT=$(find .github/workflows -name "*.yml" 2>/dev/null | wc -l)
