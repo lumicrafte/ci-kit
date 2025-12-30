@@ -53,12 +53,27 @@ on:
           - "4"
           - "5"
 
+      release_status:
+        description: "Release status: draft (save only), completed (publish), inProgress (staged rollout), halted (pause rollout)"
+        required: false
+        type: choice
+        default: "completed"
+        options:
+          - "completed"
+          - "draft"
+          - "inProgress"
+          - "halted"
+
 # Configuration Secrets (Required)
 # To promote releases on Play Store, set these in: Settings → Secrets and variables → Actions → Secrets
 #
 # Required secrets:
 #   - PLAY_STORE_SERVICE_ACCOUNT: Service account JSON from Google Play Console
 #   - PLAY_STORE_PACKAGE_NAME: Your app's package name (e.g., com.example.app)
+
+# Workflow permissions
+permissions:
+  contents: read   # Required to checkout repository for custom actions
 
 jobs:
   validate:
@@ -122,7 +137,6 @@ jobs:
 
     steps:
       - name: Checkout for actions
-        if: inputs.update_release_notes != ''
         uses: actions/checkout@v4
         with:
           sparse-checkout: |
@@ -142,7 +156,7 @@ jobs:
           track: ${{ inputs.to_track }}
           promote-track: ${{ inputs.from_track }}
           promote-release-code: ${{ inputs.version_code }}
-          status: completed
+          status: ${{ inputs.release_status }}
           in-app-update-priority: ${{ inputs.in_app_update_priority }}
           rollout-percentage: ${{ inputs.to_track == 'production' && inputs.rollout_percentage || '' }}
           whats-new-directory: ${{ inputs.update_release_notes != '' && 'whatsnew' || '' }}

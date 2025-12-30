@@ -44,6 +44,17 @@ on:
           - "4"
           - "5"
 
+      release_status:
+        description: "Release status: draft (save only), completed (publish), inProgress (staged rollout), halted (pause rollout). Use 'draft' for unpublished apps."
+        required: false
+        type: choice
+        default: "completed"
+        options:
+          - "completed"
+          - "draft"
+          - "inProgress"
+          - "halted"
+
 # Configuration Secrets (Required)
 # To publish to Play Store, set these in: Settings → Secrets and variables → Actions → Secrets
 #
@@ -234,7 +245,7 @@ jobs:
           package-name: ${{ secrets.PLAY_STORE_PACKAGE_NAME }}
           release-files: app-release.aab
           track: ${{ inputs.track }}
-          status: completed
+          status: ${{ inputs.release_status }}
           in-app-update-priority: ${{ inputs.in_app_update_priority }}
           rollout-percentage: ${{ inputs.track == 'production' && inputs.rollout_percentage || '' }}
           whats-new-directory: ${{ inputs.release_notes != '' && 'whatsnew' || '' }}
