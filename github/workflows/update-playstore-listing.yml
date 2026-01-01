@@ -175,12 +175,22 @@ jobs:
           update-screenshots: ${{ inputs.update_screenshots }}
           specific-locales: ${{ inputs.specific_locales }}
 
+      - name: Verify processed metadata exists
+        run: |
+          echo "Checking for processed metadata..."
+          ls -la .processed-metadata/ || {
+            echo "::error::.processed-metadata/ directory not found after processing"
+            exit 1
+          }
+          echo "✓ Processed metadata directory exists"
+
       - name: Upload processed metadata
         uses: actions/upload-artifact@v4
         with:
           name: processed-listing-metadata-${{ github.run_number }}
           path: .processed-metadata/
           retention-days: 1
+          if-no-files-found: error
 
   update-listing:
     name: Update Play Store Listing

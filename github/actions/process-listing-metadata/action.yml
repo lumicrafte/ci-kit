@@ -60,7 +60,25 @@ runs:
       run: |
         echo "Initializing .processed-metadata directory..."
         mkdir -p .processed-metadata/{details,listings,images}
-        echo "{}" > .processed-metadata/metadata.json
+
+        # Create initial metadata.json with processing info
+        cat > .processed-metadata/metadata.json <<EOF
+        {
+          "initialized_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+          "components": {
+            "app_details": ${{ inputs.update-app-details }},
+            "app_info": ${{ inputs.update-app-info }},
+            "icon": ${{ inputs.update-icon }},
+            "feature_graphic": ${{ inputs.update-feature-graphic }},
+            "screenshots": ${{ inputs.update-screenshots }}
+          },
+          "specific_locales": "${{ inputs.specific-locales }}"
+        }
+        EOF
+
+        # Create a marker file to ensure directory is never empty
+        echo "This directory contains processed metadata for Play Store listing updates" > .processed-metadata/.description
+
         echo "✓ Output directory created"
 
     - name: Process app details (metadata.yaml)
