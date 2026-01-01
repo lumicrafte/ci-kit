@@ -476,17 +476,33 @@ async function run() {
       // Commit the edit to publish changes
       core.info('Committing changes...');
 
-      // Use changesNotSentForReview=true to allow listing updates on draft apps
-      // This prevents the "Only releases with status draft may be created on draft app" error
-      // Apps with only internal testing releases are still considered "draft apps"
+      // Debug: Check what's in the edit before committing
+      try {
+        const tracks = await androidPublisher.edits.tracks.list({
+          packageName: packageName,
+          editId: editId
+        });
+
+        if (tracks.data.tracks) {
+          core.info('Current tracks in edit:');
+          for (const track of tracks.data.tracks) {
+            if (track.releases && track.releases.length > 0) {
+              for (const release of track.releases) {
+                core.info(`  - Track: ${track.track}, Status: ${release.status}, Versions: ${release.versionCodes?.join(', ') || 'none'}`);
+              }
+            }
+          }
+        }
+      } catch (debugError) {
+        core.warning(`Could not debug tracks: ${debugError.message}`);
+      }
+
       await androidPublisher.edits.commit({
         packageName: packageName,
-        editId: editId,
-        changesNotSentForReview: true
+        editId: editId
       });
 
       core.info('Changes committed successfully!');
-      core.info('Note: Changes saved but not sent for review (will be visible immediately)');
     }
 
     // Set output
