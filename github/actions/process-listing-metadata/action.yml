@@ -58,11 +58,11 @@ runs:
     - name: Initialize output directory
       shell: bash
       run: |
-        echo "Initializing .processed-metadata directory..."
-        mkdir -p .processed-metadata/{details,listings,images}
+        echo "Initializing processed-metadata directory..."
+        mkdir -p processed-metadata/{details,listings,images}
 
         # Create initial metadata.json with processing info
-        cat > .processed-metadata/metadata.json <<EOF
+        cat > processed-metadata/metadata.json <<EOF
         {
           "initialized_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
           "components": {
@@ -75,9 +75,6 @@ runs:
           "specific_locales": "${{ inputs.specific-locales }}"
         }
         EOF
-
-        # Create a marker file to ensure directory is never empty
-        echo "This directory contains processed metadata for Play Store listing updates" > .processed-metadata/.description
 
         echo "✓ Output directory created"
 
@@ -92,40 +89,40 @@ runs:
         # Extract category
         CATEGORY=$(yq eval '.category' "$METADATA_FILE")
         if [ "$CATEGORY" != "null" ] && [ -n "$CATEGORY" ]; then
-          echo "$CATEGORY" > .processed-metadata/details/category.txt
+          echo "$CATEGORY" > processed-metadata/details/category.txt
           echo "  ✓ Category: $CATEGORY"
         fi
 
         # Extract contact info
         WEBSITE=$(yq eval '.contact.website' "$METADATA_FILE")
         if [ "$WEBSITE" != "null" ] && [ -n "$WEBSITE" ]; then
-          echo "$WEBSITE" > .processed-metadata/details/website.txt
+          echo "$WEBSITE" > processed-metadata/details/website.txt
           echo "  ✓ Website: $WEBSITE"
         fi
 
         EMAIL=$(yq eval '.contact.email' "$METADATA_FILE")
         if [ "$EMAIL" != "null" ] && [ -n "$EMAIL" ]; then
-          echo "$EMAIL" > .processed-metadata/details/email.txt
+          echo "$EMAIL" > processed-metadata/details/email.txt
           echo "  ✓ Email: $EMAIL"
         fi
 
         PHONE=$(yq eval '.contact.phone' "$METADATA_FILE")
         if [ "$PHONE" != "null" ] && [ -n "$PHONE" ]; then
-          echo "$PHONE" > .processed-metadata/details/phone.txt
+          echo "$PHONE" > processed-metadata/details/phone.txt
           echo "  ✓ Phone: $PHONE"
         fi
 
         # Extract privacy policy
         PRIVACY_POLICY=$(yq eval '.privacy_policy_url' "$METADATA_FILE")
         if [ "$PRIVACY_POLICY" != "null" ] && [ -n "$PRIVACY_POLICY" ]; then
-          echo "$PRIVACY_POLICY" > .processed-metadata/details/privacy_policy_url.txt
+          echo "$PRIVACY_POLICY" > processed-metadata/details/privacy_policy_url.txt
           echo "  ✓ Privacy Policy: $PRIVACY_POLICY"
         fi
 
         # Extract default language
         DEFAULT_LANG=$(yq eval '.default_language' "$METADATA_FILE")
         if [ "$DEFAULT_LANG" != "null" ] && [ -n "$DEFAULT_LANG" ]; then
-          echo "$DEFAULT_LANG" > .processed-metadata/details/default_language.txt
+          echo "$DEFAULT_LANG" > processed-metadata/details/default_language.txt
           echo "  ✓ Default Language: $DEFAULT_LANG"
         fi
 
@@ -160,33 +157,33 @@ runs:
           echo "Processing locale: $locale"
 
           # Create locale directory
-          mkdir -p ".processed-metadata/listings/$locale"
+          mkdir -p "processed-metadata/listings/$locale"
 
           # Extract title
           TITLE=$(yq eval ".locales.\"$locale\".title" "$APP_INFO_FILE")
           if [ "$TITLE" != "null" ] && [ -n "$TITLE" ]; then
-            echo "$TITLE" > ".processed-metadata/listings/$locale/title.txt"
+            echo "$TITLE" > "processed-metadata/listings/$locale/title.txt"
             echo "  ✓ Title: $TITLE"
           fi
 
           # Extract short description
           SHORT_DESC=$(yq eval ".locales.\"$locale\".short_description" "$APP_INFO_FILE")
           if [ "$SHORT_DESC" != "null" ] && [ -n "$SHORT_DESC" ]; then
-            echo "$SHORT_DESC" > ".processed-metadata/listings/$locale/short_description.txt"
+            echo "$SHORT_DESC" > "processed-metadata/listings/$locale/short_description.txt"
             echo "  ✓ Short description (${#SHORT_DESC} chars)"
           fi
 
           # Extract full description
           FULL_DESC=$(yq eval ".locales.\"$locale\".full_description" "$APP_INFO_FILE")
           if [ "$FULL_DESC" != "null" ] && [ -n "$FULL_DESC" ]; then
-            echo "$FULL_DESC" > ".processed-metadata/listings/$locale/full_description.txt"
+            echo "$FULL_DESC" > "processed-metadata/listings/$locale/full_description.txt"
             echo "  ✓ Full description (${#FULL_DESC} chars)"
           fi
 
           # Extract video URL (optional)
           VIDEO=$(yq eval ".locales.\"$locale\".video" "$APP_INFO_FILE")
           if [ "$VIDEO" != "null" ] && [ -n "$VIDEO" ]; then
-            echo "$VIDEO" > ".processed-metadata/listings/$locale/video.txt"
+            echo "$VIDEO" > "processed-metadata/listings/$locale/video.txt"
             echo "  ✓ Video: $VIDEO"
           fi
         done
@@ -203,9 +200,9 @@ runs:
         ICON_PATH="${{ inputs.playstore-dir }}/graphics/icon.png"
 
         if [ -f "$ICON_PATH" ]; then
-          mkdir -p .processed-metadata/images
-          cp "$ICON_PATH" .processed-metadata/images/icon.png
-          echo "icon.png" > .processed-metadata/images/icon.list
+          mkdir -p processed-metadata/images
+          cp "$ICON_PATH" processed-metadata/images/icon.png
+          echo "icon.png" > processed-metadata/images/icon.list
           echo "✓ Icon copied to processed metadata"
         else
           echo "::error::Icon file not found: $ICON_PATH"
@@ -221,9 +218,9 @@ runs:
         GRAPHIC_PATH="${{ inputs.playstore-dir }}/graphics/feature-graphic.png"
 
         if [ -f "$GRAPHIC_PATH" ]; then
-          mkdir -p .processed-metadata/images
-          cp "$GRAPHIC_PATH" .processed-metadata/images/feature-graphic.png
-          echo "feature-graphic.png" > .processed-metadata/images/feature-graphic.list
+          mkdir -p processed-metadata/images
+          cp "$GRAPHIC_PATH" processed-metadata/images/feature-graphic.png
+          echo "feature-graphic.png" > processed-metadata/images/feature-graphic.list
           echo "✓ Feature graphic copied to processed metadata"
         else
           echo "::error::Feature graphic file not found: $GRAPHIC_PATH"
@@ -279,7 +276,7 @@ runs:
             fi
 
             # Create output directory
-            mkdir -p ".processed-metadata/images/screenshots/$locale/$device_type"
+            mkdir -p "processed-metadata/images/screenshots/$locale/$device_type"
 
             # Copy screenshots in order
             SCREENSHOT_NUM=1
@@ -290,7 +287,7 @@ runs:
               EXT="${screenshot##*.}"
 
               # Copy with numbered name
-              cp "$screenshot" ".processed-metadata/images/screenshots/$locale/$device_type/$SCREENSHOT_NUM.$EXT"
+              cp "$screenshot" "processed-metadata/images/screenshots/$locale/$device_type/$SCREENSHOT_NUM.$EXT"
 
               ((SCREENSHOT_NUM++))
             done
@@ -311,7 +308,7 @@ runs:
         echo "Generating metadata summary..."
 
         # Create a JSON summary of what was processed
-        cat > .processed-metadata/metadata.json <<EOF
+        cat > processed-metadata/metadata.json <<EOF
         {
           "processed_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
           "components": {
@@ -328,4 +325,4 @@ runs:
         echo "✓ Metadata summary generated"
         echo ""
         echo "Processed metadata structure:"
-        tree -L 3 .processed-metadata/ 2>/dev/null || find .processed-metadata -type f | head -20
+        tree -L 3 processed-metadata/ 2>/dev/null || find processed-metadata -type f | head -20

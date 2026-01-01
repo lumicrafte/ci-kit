@@ -178,8 +178,8 @@ jobs:
       - name: Verify processed metadata exists
         run: |
           echo "Checking for processed metadata..."
-          ls -la .processed-metadata/ || {
-            echo "::error::.processed-metadata/ directory not found after processing"
+          ls -la processed-metadata/ || {
+            echo "::error::processed-metadata/ directory not found after processing"
             exit 1
           }
           echo "✓ Processed metadata directory exists"
@@ -188,7 +188,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: processed-listing-metadata-${{ github.run_number }}
-          path: .processed-metadata/
+          path: processed-metadata/
           retention-days: 1
           if-no-files-found: error
 
@@ -209,14 +209,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: processed-listing-metadata-${{ github.run_number }}
-          path: .processed-metadata/
+          path: processed-metadata/
 
       - name: Update Play Store listing
         uses: ./.github/actions/update-playstore-listing
         with:
           service-account-json: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT }}
           package-name: ${{ vars.PLAY_STORE_PACKAGE_NAME }}
-          metadata-path: .processed-metadata/
+          metadata-path: processed-metadata/
           dry-run: ${{ inputs.dry_run }}
 
       - name: Update summary
