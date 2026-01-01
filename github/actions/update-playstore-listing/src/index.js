@@ -476,7 +476,7 @@ async function run() {
       // Commit the edit to publish changes
       core.info('Committing changes...');
 
-      // Debug: Check what's in the edit before committing
+      // Check if app is in draft mode and needs release status conversion
       try {
         const tracks = await androidPublisher.edits.tracks.list({
           packageName: packageName,
@@ -484,17 +484,54 @@ async function run() {
         });
 
         if (tracks.data.tracks) {
-          core.info('Current tracks in edit:');
-          for (const track of tracks.data.tracks) {
-            if (track.releases && track.releases.length > 0) {
-              for (const release of track.releases) {
-                core.info(`  - Track: ${track.track}, Status: ${release.status}, Versions: ${release.versionCodes?.join(', ') || 'none'}`);
+          // Check if app has any published releases (production, beta, alpha)
+          const publishedTracks = ['production', 'beta', 'alpha'];
+          const hasPublishedRelease = tracks.data.tracks.some(track =>
+            publishedTracks.includes(track.track) &&
+            track.releases &&
+            track.releases.length > 0
+          );
+
+          if (!hasPublishedRelease) {
+            // App is in draft mode (only internal testing)
+            core.info('App is in draft mode (internal testing only)');
+            core.info('Checking if release status conversion is needed...');
+
+            // Only convert internal track releases to draft
+            for (const track of tracks.data.tracks) {
+              if (track.track === 'internal' && track.releases && track.releases.length > 0) {
+                const hasCompletedRelease = track.releases.some(r => r.status === 'completed');
+
+                if (hasCompletedRelease) {
+                  core.info(`Internal track has 'completed' release(s), converting to 'draft' for API compatibility...`);
+
+                  // Convert releases to draft status
+                  const updatedReleases = track.releases.map(release => ({
+                    ...release,
+                    status: 'draft'
+                  }));
+
+                  // Update the track
+                  await androidPublisher.edits.tracks.update({
+                    packageName: packageName,
+                    editId: editId,
+                    track: track.track,
+                    requestBody: {
+                      track: track.track,
+                      releases: updatedReleases
+                    }
+                  });
+
+                  core.info(`✓ Internal track releases converted to draft status`);
+                }
               }
             }
+          } else {
+            core.info('App has published releases, no status conversion needed');
           }
         }
-      } catch (debugError) {
-        core.warning(`Could not debug tracks: ${debugError.message}`);
+      } catch (trackError) {
+        core.warning(`Could not check/update track status: ${trackError.message}`);
       }
 
       await androidPublisher.edits.commit({
