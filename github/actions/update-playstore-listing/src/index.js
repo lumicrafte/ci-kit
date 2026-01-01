@@ -475,12 +475,18 @@ async function run() {
     } else {
       // Commit the edit to publish changes
       core.info('Committing changes...');
+
+      // Use changesNotSentForReview=true to allow listing updates on draft apps
+      // This prevents the "Only releases with status draft may be created on draft app" error
+      // Apps with only internal testing releases are still considered "draft apps"
       await androidPublisher.edits.commit({
         packageName: packageName,
-        editId: editId
+        editId: editId,
+        changesNotSentForReview: true
       });
 
       core.info('Changes committed successfully!');
+      core.info('Note: Changes saved but not sent for review (will be visible immediately)');
     }
 
     // Set output
