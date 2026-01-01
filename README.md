@@ -138,6 +138,22 @@ Replace the placeholders with your actual keystore credentials.
 
 ### Setting Up Play Store Publishing
 
+> **⚠️ IMPORTANT PREREQUISITE:** Before using these workflows to publish to Play Store, you must **manually create your app** in the Play Console first. The Google Play API cannot create new apps - it can only manage existing ones.
+>
+> **To create your app:**
+> 1. Go to [Google Play Console](https://play.google.com/console)
+> 2. Click **"Create app"**
+> 3. Fill in app details (name, default language, app type, category)
+> 4. Use the **exact package name** that matches your Flutter app (found in `android/app/build.gradle`)
+> 5. Complete required setup sections:
+>    - App access
+>    - Content rating questionnaire
+>    - Target audience and content
+>    - Store presence (at minimum)
+> 6. Once created, you can use the workflows below to automate publishing
+>
+> Without creating the app first, the workflow will fail with a clear error message.
+
 #### 1. Create Service Account in Google Cloud Console
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com)

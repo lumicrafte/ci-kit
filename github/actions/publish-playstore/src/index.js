@@ -112,12 +112,31 @@ async function run() {
       auth: auth
     });
 
-    // Create edit
+    // Create edit (will fail with 404 if app doesn't exist)
     core.info(`Creating edit for package: ${packageName}`);
-    const editResponse = await androidPublisher.edits.insert({
-      packageName: packageName,
-      requestBody: {}
-    });
+    let editResponse;
+    try {
+      editResponse = await androidPublisher.edits.insert({
+        packageName: packageName,
+        requestBody: {}
+      });
+    } catch (editError) {
+      // Provide helpful error for missing app
+      if (editError.response && editError.response.status === 404) {
+        throw new Error(
+          `App not found in Play Console!\n\n` +
+          `Package name: ${packageName}\n\n` +
+          `The app must be created manually in Play Console first:\n` +
+          `1. Go to https://play.google.com/console\n` +
+          `2. Click "Create app"\n` +
+          `3. Fill in app details with package name: ${packageName}\n` +
+          `4. Complete the required setup (content rating, store presence, etc.)\n` +
+          `5. Then try publishing again with this workflow\n\n` +
+          `Note: The Google Play API cannot create new apps - only manage existing ones.`
+        );
+      }
+      throw editError;
+    }
 
     editId = editResponse.data.id;
     core.info(`Edit created: ${editId}`);
@@ -284,13 +303,16 @@ async function run() {
       }
     }
 
-    // Format error message
+    // Format error message with better context
     let errorMessage = error.message;
+    let errorCode = null;
 
     if (error.response && error.response.data) {
       const errorData = error.response.data;
       if (errorData.error) {
         errorMessage = errorData.error.message || errorMessage;
+        errorCode = errorData.error.code;
+
         if (errorData.error.errors && errorData.error.errors.length > 0) {
           errorMessage += '\n\nDetails:\n';
           errorData.error.errors.forEach(err => {
@@ -298,6 +320,20 @@ async function run() {
           });
         }
       }
+    }
+
+    // Provide helpful context for common errors
+    if (errorCode === 404 || errorMessage.includes('not found') || errorMessage.includes('404')) {
+      errorMessage += '\n\n💡 Common cause: The app may not exist in Play Console yet.\n';
+      errorMessage += 'Apps must be created manually at https://play.google.com/console before using this action.';
+    } else if (errorCode === 401 || errorCode === 403 || errorMessage.includes('permission')) {
+      errorMessage += '\n\n💡 Common causes:\n';
+      errorMessage += '- Service account may not have proper permissions in Play Console\n';
+      errorMessage += '- Service account JSON may be invalid or expired\n';
+      errorMessage += '- Package name may not match the app in Play Console';
+    } else if (errorMessage.includes('version') && errorMessage.includes('already')) {
+      errorMessage += '\n\n💡 This version code already exists on this track.\n';
+      errorMessage += 'Increment the version code in your app and rebuild.';
     }
 
     core.setFailed(`Google Play publishing failed: ${errorMessage}`);
