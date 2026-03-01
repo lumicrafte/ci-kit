@@ -1,0 +1,27 @@
+name: "Setup .env File"
+description: "Creates a .env file from APP_ENV_FILE secret/variable if set and non-empty, otherwise skips"
+
+inputs:
+  env-file-contents:
+    description: "Contents of the .env file (pass secrets.APP_ENV_FILE or vars.APP_ENV_FILE)"
+    required: false
+    default: ""
+  env-file-path:
+    description: "Path where the .env file should be created (relative to workspace root)"
+    required: false
+    default: ".env"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Create .env file
+      shell: bash
+      env:
+        ENV_FILE_CONTENTS: ${{ inputs.env-file-contents }}
+      run: |
+        if [[ -n "$ENV_FILE_CONTENTS" ]]; then
+          printf '%s' "$ENV_FILE_CONTENTS" > "${{ github.workspace }}/${{ inputs.env-file-path }}"
+          echo "✓ .env file created at ${{ inputs.env-file-path }}"
+        else
+          echo "APP_ENV_FILE not set or empty — skipping .env file creation"
+        fi

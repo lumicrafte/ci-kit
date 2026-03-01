@@ -130,6 +130,11 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.ref }}
 
+      - name: Setup .env file
+        uses: ./.github/actions/setup-env-file
+        with:
+          env-file-contents: ${{ vars.APP_ENV_FILE }}
+
       - name: Setup Flutter Environment
         uses: ./.github/actions/setup-flutter
         with:
@@ -163,6 +168,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Setup .env file
+        uses: ./.github/actions/setup-env-file
+        with:
+          env-file-contents: ${{ vars.APP_ENV_FILE }}
 
       - name: Setup Flutter Environment
         uses: ./.github/actions/setup-flutter
@@ -200,6 +210,11 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.ref }}
 
+      - name: Setup .env file
+        uses: ./.github/actions/setup-env-file
+        with:
+          env-file-contents: ${{ vars.APP_ENV_FILE }}
+
       - name: Setup Flutter Environment
         uses: ./.github/actions/setup-flutter
         with:
@@ -233,6 +248,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Setup .env file
+        uses: ./.github/actions/setup-env-file
+        with:
+          env-file-contents: ${{ vars.APP_ENV_FILE }}
 
       - name: Setup Flutter Environment
         uses: ./.github/actions/setup-flutter

@@ -24,6 +24,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup .env file
+        uses: ./.github/actions/setup-env-file
+        with:
+          env-file-contents: ${{ vars.APP_ENV_FILE }}
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:

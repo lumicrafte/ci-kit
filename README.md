@@ -75,6 +75,7 @@ If you already have `install.sh` downloaded, you can simply run:
 
 ### Custom Actions
 
+- **setup-env-file** - Creates a `.env` file from `APP_ENV_FILE` variable if set, otherwise skips
 - **setup-android-signing** - Configures Android app signing with keystore
 - **setup-flutter** - Sets up Flutter SDK with caching
 - **build-android** - Builds Android APK/AAB with configurable options
@@ -112,6 +113,7 @@ Go to **Settings → Secrets and variables → Actions → Variables** and add:
 |----------|-------------|---------|
 | `FLUTTER_VERSION` | Flutter SDK version | `3.35.x` |
 | `JAVA_VERSION` | Java JDK version | `17` |
+| `APP_ENV_FILE` | Contents of `.env` file to inject into builds | *(skipped if unset)* |
 
 ### Setting Up Android Signing
 

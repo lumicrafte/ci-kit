@@ -67,6 +67,7 @@ Set in **Settings → Secrets and variables → Actions → Variables**:
 | `JAVA_VERSION` | Java JDK version | `17` |
 | `ANDROID_KEYSTORE_BASE64` | Base64-encoded keystore file | *(required for release)* |
 | `ANDROID_KEY_PROPERTIES` | Key properties file content | *(required for release)* |
+| `APP_ENV_FILE` | Contents of `.env` file to inject into builds | *(skipped if unset)* |
 
 ### Android Signing Setup
 
