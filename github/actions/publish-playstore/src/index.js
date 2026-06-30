@@ -91,8 +91,12 @@ async function run() {
       if (isNaN(percentage) || percentage < 5 || percentage > 100) {
         throw new Error(`rollout-percentage must be a number between 5 and 100, got: ${rolloutPercentageInput}`);
       }
-      userFraction = percentage / 100;
-      core.info(`Staged rollout: ${percentage}%`);
+      if (percentage < 100) {
+        userFraction = percentage / 100;
+        core.info(`Staged rollout: ${percentage}%`);
+      } else {
+        core.info('Rollout is 100% — publishing as completed release (no userFraction)');
+      }
     }
 
     // Validate in-app update priority
